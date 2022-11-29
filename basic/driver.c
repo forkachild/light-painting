@@ -50,6 +50,13 @@
  */
 #define BYTES_FOR_RESET 19
 
+struct WS2812Driver
+{
+    size_t ledCount;
+    uint dmaChannel;
+    uint16_t *dataBuffer;
+};
+
 /**
  * @brief Dictionary entries to encode 4 bits of data at a time
  *
@@ -89,8 +96,9 @@ static uint16_t DICT[] = {
     0b1100110011001100,
 };
 
-void ws2812_driver_init(WS2812Driver *driver, size_t ledCount)
+void ws2812_driver_init(WS2812Driver **ppDriver, size_t ledCount)
 {
+    WS2812Driver *driver = malloc(sizeof(WS2812Driver));
     if (ledCount <= 0)
     {
         panic("Invalid led count\n");
@@ -118,35 +126,39 @@ void ws2812_driver_init(WS2812Driver *driver, size_t ledCount)
         driver->dataBuffer,
         dataTransferSize,
         false);
+    *ppDriver = driver;
 }
 
-void ws2812_driver_submit_argb_buffer_blocking(WS2812Driver *driver, const uint32_t *argbBuffer)
+void ws2812_driver_submit_argb_buffer_blocking(WS2812Driver *pDriver, const uint32_t *pArgbBuffer)
 {
-    for (int i = 0, k = 0; i < driver->ledCount; i++)
+    for (int i = 0, k = 0; i < pDriver->ledCount; i++)
     {
-        uint32_t rgb = argbBuffer[i];
+        uint32_t rgb = pArgbBuffer[i];
         uint8_t red = (uint8_t)(rgb >> 16);
         uint8_t green = (uint8_t)(rgb >> 8);
         uint8_t blue = (uint8_t)rgb;
 
-        driver->dataBuffer[k++] = DICT[green >> 4];
-        driver->dataBuffer[k++] = DICT[green & 0x0F];
+        pDriver->dataBuffer[k++] = DICT[green >> 4];
+        pDriver->dataBuffer[k++] = DICT[green & 0x0F];
 
-        driver->dataBuffer[k++] = DICT[red >> 4];
-        driver->dataBuffer[k++] = DICT[red & 0x0F];
+        pDriver->dataBuffer[k++] = DICT[red >> 4];
+        pDriver->dataBuffer[k++] = DICT[red & 0x0F];
 
-        driver->dataBuffer[k++] = DICT[blue >> 4];
-        driver->dataBuffer[k++] = DICT[blue & 0x0F];
+        pDriver->dataBuffer[k++] = DICT[blue >> 4];
+        pDriver->dataBuffer[k++] = DICT[blue & 0x0F];
     }
 
-    dma_start_channel_mask((1 << driver->dmaChannel));
-    dma_channel_wait_for_finish_blocking(driver->dmaChannel);
+    dma_start_channel_mask((1 << pDriver->dmaChannel));
+    dma_channel_wait_for_finish_blocking(pDriver->dmaChannel);
 }
 
-void ws2812_driver_deinit(WS2812Driver *driver)
+void ws2812_driver_deinit(WS2812Driver **ppDriver)
 {
+    WS2812Driver *driver = *ppDriver;
     spi_deinit(spi_default);
     gpio_deinit(PICO_DEFAULT_SPI_CSN_PIN);
     dma_channel_unclaim(driver->dmaChannel);
     free(driver->dataBuffer);
+    free(driver);
+    *ppDriver = NULL;
 }
