@@ -18,42 +18,36 @@ int main()
     WS2812PioDriver *driver;
     ws2812_pio_driver_init(&driver, LED_COUNT);
 
-    status_show(false);
-
     Canvas *canvas;
     canvas_init(&canvas, LED_COUNT);
 
-    status_show(true);
-
     CanvasColor red = {
-        .value = 0xFF000000,
+        .channels = {
+            .red = 0xFF,
+            .green = 0,
+            .blue = 0,
+            .alpha = 0,
+        },
     };
+    CanvasColor black = {.value = 0x00000000};
 
-    CanvasColor green = {
-        .value = 0x00FF0000,
-    };
-
-    CanvasColor blue = {
-        .value = 0x0000FF00,
-    };
+    int position = 0;
+    int dir = 1;
 
     while (true)
     {
-        printf("I'm before red\n");
-        status_show(false);
-        canvas_clear(canvas, red);
+        canvas_line(canvas, position, position + LINE_LENGTH, red);
         ws2812_pio_driver_submit_buffer_blocking(driver, canvas_get_grba_buffer(canvas));
-        sleep_ms(500);
-        printf("I'm before green\n");
-        status_show(true);
-        canvas_clear(canvas, green);
-        ws2812_pio_driver_submit_buffer_blocking(driver, canvas_get_grba_buffer(canvas));
-        sleep_ms(500);
-        printf("I'm before blue\n");
-        status_show(false);
-        canvas_clear(canvas, blue);
-        ws2812_pio_driver_submit_buffer_blocking(driver, canvas_get_grba_buffer(canvas));
-        sleep_ms(500);
+        canvas_line(canvas, position, position + LINE_LENGTH, black);
+
+        position += dir;
+
+        if (position == 0 || position > LED_COUNT - LINE_LENGTH)
+        {
+            dir *= -1;
+        }
+
+        sleep_ms(25);
     }
 
     status_show(true);
@@ -62,5 +56,5 @@ int main()
     ws2812_pio_driver_deinit(&driver);
     status_deinit();
 
-    return 0;
+    return EXIT_SUCCESS;
 }
