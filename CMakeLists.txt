@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.13)
 
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
@@ -9,11 +9,31 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 
 add_compile_options(
-        -Wall
-        -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
-        -Wno-unused-function # we have some for the docs that aren't called
-        -Wno-maybe-uninitialized
-        )
+    -Wall
+    -Wno-format          # int != int32_t as far as the compiler is concerned because gcc has int32_t as long int
+    -Wno-unused-function # we have some for the docs that aren't called
+    -Wno-maybe-uninitialized
+)
 
-add_subdirectory(blinky)
-add_subdirectory(basic)
+add_subdirectory(status)
+add_subdirectory(canvas)
+add_subdirectory(ws2812_spi)
+add_subdirectory(ws2812_pio)
+
+add_executable(LightPainting)
+
+target_sources(LightPainting
+    PRIVATE
+        program.c
+)
+
+target_link_libraries(LightPainting
+    pico_stdlib
+    ws2812_pio
+    canvas
+    status
+)
+
+pico_add_extra_outputs(LightPainting)
+pico_enable_stdio_usb(LightPainting 1)
+pico_enable_stdio_uart(LightPainting 0)

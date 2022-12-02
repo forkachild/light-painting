@@ -1,0 +1,72 @@
+.program ws2812
+.side_set 1
+
+; .define public T1 2
+; .define public T2 5
+; .define public T3 3
+
+; .lang_opt python sideset_init = pico.PIO.OUT_HIGH
+; .lang_opt python out_init     = pico.PIO.OUT_HIGH
+; .lang_opt python out_shiftdir = 1
+
+; .wrap_target
+; bitloop:
+;     out x, 1       side 0 [T3 - 1] ; Side-set still takes place when instruction stalls
+;     jmp !x do_zero side 1 [T1 - 1] ; Branch on the bit we shifted out. Positive pulse
+; do_one:
+;     jmp  bitloop   side 1 [T2 - 1] ; Continue driving high, for a long pulse
+; do_zero:
+;     nop            side 0 [T2 - 1] ; Or drive low, for a short pulse
+; .wrap
+
+; Time unit is 0.1 micro-second
+.define T3 3
+.define T5 5
+.define T6 6
+
+.define HIGH 1
+.define LOW 0
+
+.wrap_target
+bitloop:
+    out x, 1         side LOW               ; LOW(0.1us) then move 1 MSB from the OSR into "x" register (blocking)
+
+                                            ; Bit transmission starts from here
+    jmp !x do_zero   side HIGH  [T3 - 1]    ; HIGH(.3us) then decide and jump to bit transmission
+
+                                            ; Continue on to transmitting "1"
+do_one:
+    nop              side HIGH  [T5 - 1]    ; HIGH(.5us)
+    jmp bitloop      side LOW               ; LOW(.1us) then jump back
+
+                                            ; Continue on to transmitting "0"
+do_zero:
+    nop              side LOW   [T6 - 1]    ; LOW(.6us) at the low state
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+#define BAUD 10000000
+
+static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+    pio_sm_config c = ws2812_program_get_default_config(offset);
+    sm_config_set_sideset_pins(&c, pin);
+    sm_config_set_out_shift(&c, false, true, 24);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    float div = clock_get_hz(clk_sys) / BAUD;
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void ws2812_pio_program_deinit(PIO pio, uint sm) {
+    pio_sm_set_enabled(pio, sm, true);
+    pio_sm_unclaim(pio, sm);
+}
+%}

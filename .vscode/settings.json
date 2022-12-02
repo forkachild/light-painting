@@ -5,6 +5,8 @@
         "spi.h": "c",
         "binary_info.h": "c",
         "driver.h": "c",
-        "random": "c"
+        "random": "c",
+        "canvas.h": "c",
+        "buffer.h": "c"
     }
 }
