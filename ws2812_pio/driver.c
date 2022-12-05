@@ -8,22 +8,21 @@
 
 #include "generated/ws2812_driver.pio.h"
 
-#define OUTPUT_GPIO 19
-
 static const PIO pio = pio0;
 static const uint sm = 0;
 
 struct WS2812PioDriver
 {
+    uint pin;
     uint count;
     uint pioOffset;
     uint dmaChannel;
 };
 
-void ws2812_pio_driver_init(WS2812PioDriver **ppDriver, uint count)
+void ws2812_pio_driver_init(WS2812PioDriver **ppDriver, uint pin, uint count)
 {
     uint offset = pio_add_program(pio, &ws2812_program);
-    ws2812_pio_program_init(pio, sm, offset, OUTPUT_GPIO);
+    ws2812_pio_program_init(pio, sm, offset, pin);
 
     uint channel = dma_claim_unused_channel(true);
     dma_channel_config c = dma_channel_get_default_config(channel);
@@ -31,6 +30,8 @@ void ws2812_pio_driver_init(WS2812PioDriver **ppDriver, uint count)
     channel_config_set_read_increment(&c, true);
     channel_config_set_write_increment(&c, false);
     channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_irq_quiet(&c, true);
+    // 6754
     dma_channel_configure(
         channel,
         &c,
@@ -41,6 +42,7 @@ void ws2812_pio_driver_init(WS2812PioDriver **ppDriver, uint count)
 
     WS2812PioDriver *driver = malloc(sizeof(WS2812PioDriver));
 
+    driver->pin = pin;
     driver->count = count;
     driver->pioOffset = offset;
     driver->dmaChannel = channel;
@@ -52,7 +54,7 @@ void ws2812_pio_driver_submit_buffer_blocking(WS2812PioDriver *pDriver, const ui
 {
     dma_channel_set_read_addr(pDriver->dmaChannel, pBuffer, true);
     dma_channel_wait_for_finish_blocking(pDriver->dmaChannel);
-    sleep_us(50);
+    // sleep_us(50);
 }
 
 void ws2812_pio_driver_deinit(WS2812PioDriver **ppDriver)

@@ -2,34 +2,25 @@
 .side_set 1
 
 ; Time unit is 0.1 micro-second
-.define T3 3
-.define T5 5
-.define T6 6
+.define T1 3
 
-.define HIGH 1
-.define LOW 0
+.define HI 1
+.define LO 0
+
+.define PUBLIC BAUD 10000000
 
 .wrap_target
 bitloop:
-    out x, 1         side LOW               ; LOW(0.1us) then move 1 MSB from the OSR into "x" register (blocking)
-
-                                            ; Bit transmission starts from here
-    jmp !x do_zero   side HIGH  [T3 - 1]    ; HIGH(.3us) then decide and jump to bit transmission
-
-                                            ; Continue on to transmitting "1"
+    out x  1       side LO [T1 - 1]  ; 0.3us LOW  => Read next bit, also completes previous bit LOW signal
+    jmp !x do_zero side HI [T1 - 1]  ; 0.3us HIGH => Decide jumping to transmitting a "0" or "1"
 do_one:
-    nop              side HIGH  [T5 - 1]    ; HIGH(.5us)
-    jmp bitloop      side LOW               ; LOW(.1us) then jump back
-
-                                            ; Continue on to transmitting "0"
+    jmp bitloop    side HI [T1 - 1]  ; 0.3us HIGH => Generated pulse = (0.2 + 0.5)us HIGH + 0.3us LOW
 do_zero:
-    nop              side LOW   [T6 - 1]    ; LOW(.6us) at the low state
+    nop            side LO [T1 - 1]  ; 0.3us LOW  => Generated pulse = 0.2us HIGH + (0.5 + 0.3)us LOW
 .wrap
 
 % c-sdk {
 #include "hardware/clocks.h"
-
-#define BAUD 10000000
 
 static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_gpio_init(pio, pin);
@@ -40,7 +31,7 @@ static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint p
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    float div = clock_get_hz(clk_sys) / BAUD;
+    float div = clock_get_hz(clk_sys) / ws2812_BAUD;
     sm_config_set_clkdiv(&c, div);
 
     pio_sm_init(pio, sm, offset, &c);
@@ -48,7 +39,7 @@ static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint p
 }
 
 static inline void ws2812_pio_program_deinit(PIO pio, uint sm) {
-    pio_sm_set_enabled(pio, sm, true);
+    pio_sm_set_enabled(pio, sm, false);
     pio_sm_unclaim(pio, sm);
 }
 %}

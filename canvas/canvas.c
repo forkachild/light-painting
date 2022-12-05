@@ -38,6 +38,11 @@ void canvas_line(
     uint end,
     CanvasColor color)
 {
+    if (start < 0)
+    {
+        start = 0;
+    }
+
     if (end > pCanvas->count)
     {
         end = pCanvas->count;
@@ -58,7 +63,7 @@ void canvas_line_gradient(
     Canvas *pCanvas,
     uint start,
     uint end,
-    CanvasColor *pColorArray,
+    const CanvasColor *pColorArray,
     uint colorArrayCount)
 {
     if (end > pCanvas->count)
@@ -81,10 +86,11 @@ void canvas_line_gradient(
 
         float fraction = progress - index;
 
-        color.channels.red = (pColorArray[index].channels.red * (1.f - fraction)) + (pColorArray[nextIndex].channels.red * fraction);
-        color.channels.green = (pColorArray[index].channels.green * (1.f - fraction)) + (pColorArray[nextIndex].channels.green * fraction);
-        color.channels.blue = (pColorArray[index].channels.blue * (1.f - fraction)) + (pColorArray[nextIndex].channels.blue * fraction);
+        color.channels.red = (uint8_t)(pColorArray[index].channels.red * (1.f - fraction)) + (uint8_t)(pColorArray[nextIndex].channels.red * fraction);
+        color.channels.green = (uint8_t)(pColorArray[index].channels.green * (1.f - fraction)) + (uint8_t)(pColorArray[nextIndex].channels.green * fraction);
+        color.channels.blue = (uint8_t)(pColorArray[index].channels.blue * (1.f - fraction)) + (uint8_t)(pColorArray[nextIndex].channels.blue * fraction);
 
+        printf("Red: %02x, Green: %02X, Blue: %02X\n", color.channels.red, color.channels.green, color.channels.blue);
         pCanvas->pBuffer[i] = color.value;
     }
 }

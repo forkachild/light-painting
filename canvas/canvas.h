@@ -38,7 +38,7 @@ void canvas_line_gradient(
     Canvas *pCanvas,
     uint start,
     uint end,
-    CanvasColor *pColorArray,
+    const CanvasColor *pColorArray,
     uint colorArrayCount);
 void canvas_line_rainbow(
     Canvas *pCanvas,
