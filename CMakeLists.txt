@@ -15,10 +15,14 @@ add_compile_options(
     -Wno-maybe-uninitialized
 )
 
+# add_definitions(-DDOUBLE_PRECISION)
+
 add_subdirectory(status)
 add_subdirectory(canvas)
 add_subdirectory(ws2812_spi)
 add_subdirectory(ws2812_pio)
+add_subdirectory(inmp441_pio)
+add_subdirectory(fft)
 
 add_executable(LightPainting)
 
@@ -30,8 +34,10 @@ target_sources(LightPainting
 target_link_libraries(LightPainting
     pico_stdlib
     ws2812_pio
+    inmp441_pio
     canvas
     status
+    fft
 )
 
 pico_add_extra_outputs(LightPainting)

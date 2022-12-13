@@ -1,4 +1,4 @@
-.program ws2812
+.program ws2812_pio
 .side_set 1
 
 ; Time unit is 0.1 micro-second
@@ -7,7 +7,7 @@
 .define HI 1
 .define LO 0
 
-.define PUBLIC BAUD 10000000
+.define public BAUD 10000000
 
 .wrap_target
 bitloop:
@@ -26,12 +26,12 @@ static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint p
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
 
-    pio_sm_config c = ws2812_program_get_default_config(offset);
+    pio_sm_config c = ws2812_pio_program_get_default_config(offset);
     sm_config_set_sideset_pins(&c, pin);
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    float div = clock_get_hz(clk_sys) / ws2812_BAUD;
+    float div = clock_get_hz(clk_sys) / ws2812_pio_BAUD;
     sm_config_set_clkdiv(&c, div);
 
     pio_sm_init(pio, sm, offset, &c);

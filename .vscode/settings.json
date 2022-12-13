@@ -1,21 +1,8 @@
 {
     "files.associations": {
-        "stdlib.h": "c",
-        "dma.h": "c",
-        "spi.h": "c",
-        "binary_info.h": "c",
-        "driver.h": "c",
-        "random": "c",
-        "canvas.h": "c",
-        "buffer.h": "c",
-        "optional": "c",
-        "istream": "c",
-        "ostream": "c",
-        "system_error": "c",
-        "array": "c",
-        "functional": "c",
-        "tuple": "c",
-        "type_traits": "c",
-        "utility": "c"
-    }
+        "**/*.h": "c",
+    },
+    "C_Cpp.clang_format_style": "{ BasedOnStyle: LLVM, UseTab: Never, IndentWidth: 4, TabWidth: 4 }",
+    "editor.detectIndentation": true,
+    "editor.tabSize": 4
 }
