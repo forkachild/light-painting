@@ -4,6 +4,7 @@
 
 #include "canvas/canvas.h"
 #include "fft/fft.h"
+#include "inmp441_pio/buffer.h"
 #include "inmp441_pio/driver.h"
 #include "pico/stdlib.h"
 #include "pico/time.h"
@@ -36,7 +37,7 @@ int main() {
     canvas_init(&canvas, LED_COUNT);
 
     fft_samples = malloc(AUDIO_SAMPLES * sizeof(ComplexType));
-    twiddles = cache_reversed_indices(AUDIO_SAMPLES);
+    twiddles = cache_twiddles(AUDIO_SAMPLES);
     reversed_indices = cache_reversed_indices(AUDIO_SAMPLES);
 
     for (;;) {
