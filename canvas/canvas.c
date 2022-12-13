@@ -11,7 +11,7 @@ static CanvasColor hsv_to_color(float hue, float sat, float val);
 struct Canvas
 {
     uint count;
-    uint32_t *pBuffer;
+    uint32_t *p_buffer;
 };
 
 void canvas_init(Canvas **ppCanvas, uint count)
@@ -19,7 +19,7 @@ void canvas_init(Canvas **ppCanvas, uint count)
     Canvas *canvas = malloc(sizeof(Canvas));
 
     canvas->count = count;
-    canvas->pBuffer = malloc(count * sizeof(uint32_t));
+    canvas->p_buffer = malloc(count * sizeof(uint32_t));
 
     *ppCanvas = canvas;
 }
@@ -28,7 +28,7 @@ void canvas_clear(Canvas *pCanvas, CanvasColor color)
 {
     for (int i = 0; i < pCanvas->count; i++)
     {
-        pCanvas->pBuffer[i] = color.value;
+        pCanvas->p_buffer[i] = color.value;
     }
 }
 
@@ -55,7 +55,7 @@ void canvas_line(
 
     for (int i = start; i < end; i++)
     {
-        pCanvas->pBuffer[i] = color.value;
+        pCanvas->p_buffer[i] = color.value;
     }
 }
 
@@ -91,7 +91,7 @@ void canvas_line_gradient(
         color.channels.blue = (uint8_t)(pColorArray[index].channels.blue * (1.f - fraction)) + (uint8_t)(pColorArray[nextIndex].channels.blue * fraction);
 
         printf("Red: %02x, Green: %02X, Blue: %02X\n", color.channels.red, color.channels.green, color.channels.blue);
-        pCanvas->pBuffer[i] = color.value;
+        pCanvas->p_buffer[i] = color.value;
     }
 }
 
@@ -118,20 +118,20 @@ void canvas_line_rainbow(
         float degrees = fDegreeDelta * i;
         degrees = degrees + phase;
         degrees = fmodf(degrees, 360.f);
-        pCanvas->pBuffer[i] = hsv_to_color(degrees, 1.0f, 1.0f).value;
+        pCanvas->p_buffer[i] = hsv_to_color(degrees, 1.0f, 1.0f).value;
     }
 }
 
 const inline uint32_t *canvas_get_grba_buffer(Canvas *pCanvas)
 {
-    return pCanvas->pBuffer;
+    return pCanvas->p_buffer;
 }
 
 void canvas_deinit(Canvas **ppCanvas)
 {
     Canvas *canvas = *ppCanvas;
 
-    free(canvas->pBuffer);
+    free(canvas->p_buffer);
     free(canvas);
 
     *ppCanvas = NULL;

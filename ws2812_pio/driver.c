@@ -14,7 +14,7 @@ struct WS2812PioDriver {
     uint dma_channel;
 };
 
-void ws2812_pio_driver_init(WS2812PioDriver **ppDriver, uint pin, uint count) {
+void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -74,18 +74,18 @@ void ws2812_pio_driver_init(WS2812PioDriver **ppDriver, uint pin, uint count) {
     driver->pio_offset = pio_offset;
     driver->dma_channel = dma_channel;
 
-    *ppDriver = driver;
+    *pp_driver = driver;
 }
 
-void ws2812_pio_driver_submit_buffer_blocking(WS2812PioDriver *pDriver,
-                                              const uint32_t *pBuffer) {
-    dma_channel_set_read_addr(pDriver->dma_channel, pBuffer, true);
-    dma_channel_wait_for_finish_blocking(pDriver->dma_channel);
-    // sleep_us(50);
+void ws2812_pio_driver_submit_buffer_blocking(WS2812PioDriver *p_driver,
+                                              const uint32_t *p_buffer) {
+    dma_channel_set_read_addr(p_driver->dma_channel, p_buffer, true);
+    dma_channel_wait_for_finish_blocking(p_driver->dma_channel);
+    sleep_us(300);
 }
 
-void ws2812_pio_driver_deinit(WS2812PioDriver **ppDriver) {
-    WS2812PioDriver *driver = *ppDriver;
+void ws2812_pio_driver_deinit(WS2812PioDriver **pp_driver) {
+    WS2812PioDriver *driver = *pp_driver;
 
     // Let go of the DMA
     dma_channel_abort(driver->dma_channel);
@@ -99,5 +99,5 @@ void ws2812_pio_driver_deinit(WS2812PioDriver **ppDriver) {
     free(driver);
 
     // As if nothing ever existed ;-)
-    *ppDriver = NULL;
+    *pp_driver = NULL;
 }

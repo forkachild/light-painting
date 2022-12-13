@@ -1,5 +1,6 @@
 #include <stdlib.h>
 
+#include "buffer.h"
 #include "driver.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
@@ -7,28 +8,12 @@
 
 #include "generated/inmp441_driver.pio.h"
 
-#ifdef RX_FIFO_JOIN_TX
-#define RX_FIFO_SIZE 8
-#else
-#define RX_FIFO_SIZE 4
-#endif
-
 struct INMP441PioDriver {
     PIO pio;
     uint pio_sm;
     uint pio_offset;
     uint dma_channel;
 };
-
-struct INMP441PioDriverBuffer {
-    uint count;
-    uint32_t *p_padded_buffer;
-};
-
-static inline uint32_t *
-inpm441_pio_driver_buffer_get_ptr(INMP441PioDriverBuffer *p_buffer_ptr) {
-    return p_buffer_ptr->p_padded_buffer;
-}
 
 void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint ctrl_pin_start,
                              uint data_pin) {
@@ -81,10 +66,13 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint ctrl_pin_start,
 }
 
 void inmp441_pio_driver_receive_blocking(INMP441PioDriver *p_driver,
-                                         INMP441PioDriverBuffer *p_buffer,
-                                         uint count) {
-    dma_channel_set_write_addr(p_driver->dma_channel, p_buffer, false);
-    dma_channel_set_trans_count(p_driver->dma_channel, count, true);
+                                         INMP441PioBuffer *p_buffer) {
+    dma_channel_set_trans_count(p_driver->dma_channel,
+                                inmp441_pio_buffer_get_trans_count(p_buffer),
+                                false);
+    dma_channel_set_write_addr(p_driver->dma_channel,
+                               inmp441_pio_buffer_get_trans_ptr(p_buffer),
+                               true);
     dma_channel_wait_for_finish_blocking(p_driver->dma_channel);
 }
 
@@ -103,19 +91,4 @@ void inmp441_pio_driver_deinit(INMP441PioDriver **pp_driver) {
     pio_sm_unclaim(driver->pio, driver->pio_sm);
 
     *pp_driver = NULL;
-}
-
-void inpm441_pio_driver_buffer_init(INMP441PioDriverBuffer **pp_buffer,
-                                    uint count) {
-    INMP441PioDriverBuffer *buffer = malloc(sizeof(INMP441PioDriverBuffer));
-    buffer->count = count;
-    buffer->p_padded_buffer = malloc((count + RX_FIFO_SIZE) * sizeof(uint32_t));
-    *pp_buffer = buffer;
-}
-
-void inmp441_pio_driver_buffer_deinit(INMP441PioDriverBuffer **pp_buffer) {
-    INMP441PioDriverBuffer *buffer;
-
-    if (!(buffer = *pp_buffer))
-        return;
 }

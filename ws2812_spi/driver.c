@@ -102,7 +102,7 @@ static uint16_t DICT[] = {
     0xCCCCU, // 0b1111
 };
 
-void ws2812_spi_driver_init(WS2812SpiDriver **ppDriver, size_t ledCount)
+void ws2812_spi_driver_init(WS2812SpiDriver **pp_driver, size_t ledCount)
 {
     WS2812SpiDriver *driver = malloc(sizeof(WS2812SpiDriver));
     if (ledCount <= 0)
@@ -136,43 +136,43 @@ void ws2812_spi_driver_init(WS2812SpiDriver **ppDriver, size_t ledCount)
         NULL,
         totalXferSize,
         false);
-    *ppDriver = driver;
+    *pp_driver = driver;
 }
 
-void ws2812_spi_driver_submit_argb_buffer_blocking(WS2812SpiDriver *pDriver, const uint32_t *pArgbBuffer)
+void ws2812_spi_driver_submit_argb_buffer_blocking(WS2812SpiDriver *p_driver, const uint32_t *pArgbBuffer)
 {
-    for (int i = 0, k = 0; i < pDriver->ledCount; i++)
+    for (int i = 0, k = 0; i < p_driver->ledCount; i++)
     {
         uint32_t rgb = pArgbBuffer[i];
         uint8_t red = ARGB_RED(rgb);
         uint8_t green = ARGB_GREEN(rgb);
         uint8_t blue = ARGB_BLUE(rgb);
 
-        pDriver->pDataBuffer[k++] = DICT[(green >> 4) & 0xF];
-        pDriver->pDataBuffer[k++] = DICT[green & 0xF];
+        p_driver->pDataBuffer[k++] = DICT[(green >> 4) & 0xF];
+        p_driver->pDataBuffer[k++] = DICT[green & 0xF];
 
-        pDriver->pDataBuffer[k++] = DICT[(red >> 4) & 0xF];
-        pDriver->pDataBuffer[k++] = DICT[red & 0xF];
+        p_driver->pDataBuffer[k++] = DICT[(red >> 4) & 0xF];
+        p_driver->pDataBuffer[k++] = DICT[red & 0xF];
 
-        pDriver->pDataBuffer[k++] = DICT[(blue >> 4) & 0xF];
-        pDriver->pDataBuffer[k++] = DICT[blue & 0xF];
+        p_driver->pDataBuffer[k++] = DICT[(blue >> 4) & 0xF];
+        p_driver->pDataBuffer[k++] = DICT[blue & 0xF];
     }
 
     // As the DMA read address is set to increment, it needs to be
     // set to the start of the buffer everytime a transfer is queued.
     // Also the last argument triggers the transfer immediately.
-    dma_channel_set_read_addr(pDriver->dmaChannel, pDriver->pDataBuffer, true);
-    dma_channel_wait_for_finish_blocking(pDriver->dmaChannel);
+    dma_channel_set_read_addr(p_driver->dmaChannel, p_driver->pDataBuffer, true);
+    dma_channel_wait_for_finish_blocking(p_driver->dmaChannel);
 }
 
-void ws2812_driver_deinit(WS2812SpiDriver **ppDriver)
+void ws2812_driver_deinit(WS2812SpiDriver **pp_driver)
 {
-    WS2812SpiDriver *driver = *ppDriver;
+    WS2812SpiDriver *driver = *pp_driver;
 
     dma_channel_unclaim(driver->dmaChannel);
     spi_deinit(spi_default);
     free(driver->pDataBuffer);
     free(driver);
 
-    *ppDriver = NULL;
+    *pp_driver = NULL;
 }
