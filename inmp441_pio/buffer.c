@@ -2,7 +2,9 @@
 
 #include "buffer.h"
 
-#define RX_FIFO_SKIP_STALE 4
+#define RX_FIFO_STALE_WORDS 4
+#define INITIAL_BAD_SAMPLE 1
+#define TOTAL_WORDS_SKIP (RX_FIFO_STALE_WORDS + INITIAL_BAD_SAMPLE)
 
 struct INMP441PioBuffer {
     uint count;
@@ -11,18 +13,18 @@ struct INMP441PioBuffer {
 
 void inmp441_pio_buffer_init(INMP441PioBuffer **pp_buffer, uint count) {
     INMP441PioBuffer *buffer = malloc(sizeof(INMP441PioBuffer));
-    buffer->count = count + RX_FIFO_SKIP_STALE;
+    buffer->count = count + TOTAL_WORDS_SKIP;
     buffer->p_padded_buffer =
-        malloc((count + RX_FIFO_SKIP_STALE) * sizeof(uint32_t));
+        malloc((count + TOTAL_WORDS_SKIP) * sizeof(uint32_t));
     *pp_buffer = buffer;
 }
 
 uint inmp441_pio_buffer_get_data_count(INMP441PioBuffer *p_buffer) {
-    return p_buffer->count - RX_FIFO_SKIP_STALE;
+    return p_buffer->count - TOTAL_WORDS_SKIP;
 }
 
 uint32_t *inmp441_pio_buffer_get_data_ptr(INMP441PioBuffer *p_buffer) {
-    return &p_buffer->p_padded_buffer[RX_FIFO_SKIP_STALE];
+    return &p_buffer->p_padded_buffer[TOTAL_WORDS_SKIP];
 }
 
 uint inmp441_pio_buffer_get_trans_count(INMP441PioBuffer *p_buffer) {

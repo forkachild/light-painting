@@ -1,0 +1,70 @@
+.program inmp441_pio
+.side_set 2
+
+.define SKIP_CYCLES     31
+.define DIN_CYCLES      24
+.define PAD_CYCLES      6
+
+.define L_CLK_LO        0b00
+.define L_CLK_HI        0b01
+.define R_CLK_LO        0b10
+.define R_CLK_HI        0b11
+
+.define PUBLIC HIGHEST_CLOCK_RATE 6410256
+
+.wrap_target
+; Left word starts
+; Only receive data from Left channel
+L_BITLOOP_SETUP:
+    nop                 side L_CLK_LO   ; LW starts                     WS 0, CLK 0
+    nop                 side L_CLK_HI   ; 1 cycle skipped               WS 0, CLK 1
+    set x, DIN_CYCLES   side L_CLK_LO   ; DIN trigger                   WS 0, CLK 0
+L_BITLOOP:
+    in pins, 1          side L_CLK_HI   ; DIN 1-bit (Rising-edge)       WS 0, CLK 1
+    jmp x--, L_BITLOOP  side L_CLK_LO   ;                               WS 0, CLK 0
+L_SKIP_SETUP:
+    set x, PAD_CYCLES   side L_CLK_HI   ; (m - 2) cycle skipped         WS 0, CLK 1
+L_SKIP:
+    nop                 side L_CLK_LO   ;                               WS 0, CLK 0
+    jmp x--, L_SKIP     side L_CLK_HI   ;                               WS 0, CLK 1
+
+; Right word starts
+; Skip the right channel
+R_SKIP_SETUP:
+    set x, SKIP_CYCLES  side R_CLK_LO   ; RW starts                     WS 1, CLK 0
+R_SKIP:
+    nop                 side R_CLK_HI   ;                               WS 1, CLK 1
+    jmp x--, R_SKIP     side R_CLK_LO   ; Waste 32 cycles               WS 1, CLK 0
+R_END:
+    nop                 side R_CLK_HI   ;                               WS 1, CLK 1
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
+static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint clk_pin_start, uint data_pin) {
+    pio_gpio_init(pio, clk_pin_start);
+    pio_gpio_init(pio, clk_pin_start + 1);
+    gpio_pull_down(data_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, clk_pin_start, 2, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, false);
+
+    pio_sm_config c = inmp441_pio_program_get_default_config(offset);
+    
+    sm_config_set_sideset_pins(&c, clk_pin_start);
+    sm_config_set_in_pins(&c, data_pin);
+    sm_config_set_in_shift(&c, false, true, 24);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
+    sm_config_set_clkdiv(&c, clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void inmp441_pio_program_deinit(PIO pio, uint sm) {
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_unclaim(pio, sm);
+}
+
+%}

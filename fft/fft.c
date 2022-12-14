@@ -54,13 +54,11 @@ ComplexType *cache_twiddles(uint N) {
     halfN = N / 2;
     twiddles = malloc(halfN * sizeof(ComplexType));
     angle_per_sample = -2.0 * M_PI / N;
-    printf("dd\n");
 
     // Cache the twiddle factors
     // Compromise some space for HUGE performance gain
     // Cache locality baby!
     for (sample = 0; sample < halfN; sample++) {
-        printf("DUdu\n");
         angle = angle_per_sample * sample;
         twiddles[sample] = cexp(angle * I);
     }

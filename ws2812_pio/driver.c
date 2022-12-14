@@ -21,6 +21,10 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     dma_channel_config dma_config;
     WS2812PioDriver *driver;
 
+    if (*pp_driver)
+        return;
+
+    // Start with pio0
     pio = pio0;
 
     // Find an unused sm on PIO0

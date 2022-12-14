@@ -18,11 +18,11 @@
 #define ws2812_pio_BAUD 10000000
 
 static const uint16_t ws2812_pio_program_instructions[] = {
-            //     .wrap_target
-    0x6221, //  0: out    x, 1            side 0 [2] 
-    0x1223, //  1: jmp    !x, 3           side 1 [2] 
-    0x1200, //  2: jmp    0               side 1 [2] 
-    0xa242, //  3: nop                    side 0 [2] 
+    //     .wrap_target
+    0x6221, //  0: out    x, 1            side 0 [2]
+    0x1223, //  1: jmp    !x, 3           side 1 [2]
+    0x1200, //  2: jmp    0               side 1 [2]
+    0xa242, //  3: nop                    side 0 [2]
             //     .wrap
 };
 
@@ -35,13 +35,17 @@ static const struct pio_program ws2812_pio_program = {
 
 static inline pio_sm_config ws2812_pio_program_get_default_config(uint offset) {
     pio_sm_config c = pio_get_default_sm_config();
-    sm_config_set_wrap(&c, offset + ws2812_pio_wrap_target, offset + ws2812_pio_wrap);
+    sm_config_set_wrap(&c, offset + ws2812_pio_wrap_target,
+                       offset + ws2812_pio_wrap);
     sm_config_set_sideset(&c, 1, false, false);
     return c;
 }
 
 #include "hardware/clocks.h"
-static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
+#include <stdio.h>
+static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset,
+                                           uint pin) {
+    printf("WS2812_pin: %d\n", pin);
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
     pio_sm_config c = ws2812_pio_program_get_default_config(offset);
@@ -59,4 +63,3 @@ static inline void ws2812_pio_program_deinit(PIO pio, uint sm) {
 }
 
 #endif
-
