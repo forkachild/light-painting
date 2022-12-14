@@ -1,54 +1,62 @@
 .program inmp441_pio
 .side_set 2
 
-.define skip_cycles             31
-.define din_cycles              24
-.define pad_cycles              6
+.define SKIP_CYCLES     31
+.define DIN_CYCLES      24
+.define PAD_CYCLES      6
 
-.define public max_clock_rate   3200000
+.define L_CLK_LO        0b00
+.define L_CLK_HI        0b01
+.define R_CLK_LO        0b10
+.define R_CLK_HI        0b11
+
+.define PUBLIC HIGHEST_CLOCK_RATE 6410255
 
 .wrap_target
 ; Left word starts
 ; Only receive data from Left channel
-L1:
-    nop                 side 0b00   ; LW starts                         WS 0, CLK 0
-    nop                 side 0b01   ; 1 cycle skipped                   WS 0, CLK 1
-    set x, din_cycles   side 0b00   ; DIN trigger                       WS 0, CLK 0
-L2:
-    in pins, 1          side 0b01   ; DIN 1-bit (Rising-edge)           WS 0, CLK 1
-    jmp x--, L2         side 0b00   ;                                   WS 0, CLK 0
-L3:
-    set x, pad_cycles   side 0b01   ; 1 cycle skipped                   WS 0, CLK 1
-L4:
-    nop                 side 0b00   ;                                   WS 0, CLK 0
-    jmp x--, L4         side 0b01   ;                                   WS 0, CLK 1
+L_BITLOOP_SETUP:
+    nop                 side L_CLK_LO   ; LW starts                     WS 0, CLK 0
+    nop                 side L_CLK_HI   ; 1 cycle skipped               WS 0, CLK 1
+    set x, DIN_CYCLES   side L_CLK_LO   ; DIN trigger                   WS 0, CLK 0
+L_BITLOOP:
+    in pins, 1          side L_CLK_HI   ; DIN 1-bit (Rising-edge)       WS 0, CLK 1
+    jmp x--, L_BITLOOP  side L_CLK_LO   ;                               WS 0, CLK 0
+L_SKIP_SETUP:
+    set x, PAD_CYCLES   side L_CLK_HI   ; (m - 2) cycle skipped         WS 0, CLK 1
+L_SKIP:
+    nop                 side L_CLK_LO   ;                               WS 0, CLK 0
+    jmp x--, L_SKIP     side L_CLK_HI   ;                               WS 0, CLK 1
 
 ; Right word starts
 ; Skip the right channel
-L5:
-    set x, skip_cycles  side 0b10   ; RW starts                         WS 1, CLK 0
-L6:
-    nop                 side 0b11   ;                                   WS 1, CLK 1
-    jmp x--, L6         side 0b10   ; Waste 32 cycles                   WS 1, CLK 0
-L7:
-    nop                 side 0b11   ;                                   WS 1, CLK 1
+R_SKIP_SETUP:
+    set x, SKIP_CYCLES  side R_CLK_LO   ; RW starts                     WS 1, CLK 0
+R_SKIP:
+    nop                 side R_CLK_HI   ;                               WS 1, CLK 1
+    jmp x--, R_SKIP     side R_CLK_LO   ; Waste 32 cycles               WS 1, CLK 0
+R_END:
+    nop                 side R_CLK_HI   ;                               WS 1, CLK 1
 .wrap
 
 % c-sdk {
 #include "hardware/clocks.h"
+#include "hardware/gpio.h"
 
-static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint ctrl_pin_start, uint data_pin) {
-    pio_gpio_init(pio, ctrl_pin_start);
-    pio_sm_set_consecutive_pindirs(pio, sm, ctrl_pin_start, 2, true);
+static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint clk_pin_start, uint data_pin) {
+    pio_gpio_init(pio, clk_pin_start);
+    pio_gpio_init(pio, clk_pin_start + 1);
+    gpio_pull_down(data_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, clk_pin_start, 2, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, false);
 
     pio_sm_config c = inmp441_pio_program_get_default_config(offset);
-    sm_config_set_sideset_pins(&c, ctrl_pin_start);
-    sm_config_set_set_pins(&c, data_pin, 1);
+    
+    sm_config_set_sideset_pins(&c, clk_pin_start);
+    sm_config_set_in_pins(&c, data_pin);
     sm_config_set_in_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
-
-    float div = clock_get_hz(clk_sys) / inmp441_pio_max_clock_rate;
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_clkdiv(&c, clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE);
 
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);

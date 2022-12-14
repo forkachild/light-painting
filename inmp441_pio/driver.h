@@ -8,8 +8,8 @@
  */
 typedef struct INMP441PioDriver INMP441PioDriver;
 
-void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint ctrl_pin_start,
-                             uint data_pin);
+void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint clk_pin_start,
+                             uint data_pin, uint lr_pin);
 void inmp441_pio_driver_receive_blocking(INMP441PioDriver *p_driver,
                                          INMP441PioBuffer *p_buffer);
 void inmp441_pio_driver_deinit(INMP441PioDriver **pp_driver);

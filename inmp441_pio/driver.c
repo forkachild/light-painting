@@ -3,6 +3,7 @@
 #include "buffer.h"
 #include "driver.h"
 #include "hardware/dma.h"
+#include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 
@@ -15,8 +16,8 @@ struct INMP441PioDriver {
     uint dma_channel;
 };
 
-void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint ctrl_pin_start,
-                             uint data_pin) {
+void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint clk_pin_start,
+                             uint data_pin, uint lr_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -44,7 +45,11 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint ctrl_pin_start,
     }
 
     pio_offset = pio_add_program(pio, &inmp441_pio_program);
-    inmp441_pio_program_init(pio, pio_sm, pio_offset, ctrl_pin_start, data_pin);
+    inmp441_pio_program_init(pio, pio_sm, pio_offset, clk_pin_start, data_pin);
+
+    gpio_init(lr_pin);
+    gpio_set_dir(lr_pin, true);
+    gpio_put(lr_pin, false);
 
     dma_config = dma_channel_get_default_config(dma_channel);
     channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);

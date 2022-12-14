@@ -15,7 +15,7 @@
 #define inmp441_pio_wrap_target 0
 #define inmp441_pio_wrap 11
 
-#define inmp441_pio_max_clock_rate 3200000
+#define inmp441_pio_HIGHEST_CLOCK_RATE 6410255
 
 static const uint16_t inmp441_pio_program_instructions[] = {
             //     .wrap_target
@@ -49,16 +49,19 @@ static inline pio_sm_config inmp441_pio_program_get_default_config(uint offset) 
 }
 
 #include "hardware/clocks.h"
-static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint ctrl_pin_start, uint data_pin) {
-    pio_gpio_init(pio, ctrl_pin_start);
-    pio_sm_set_consecutive_pindirs(pio, sm, ctrl_pin_start, 2, true);
+#include "hardware/gpio.h"
+static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint clk_pin_start, uint data_pin) {
+    pio_gpio_init(pio, clk_pin_start);
+    pio_gpio_init(pio, clk_pin_start + 1);
+    gpio_pull_down(data_pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, clk_pin_start, 2, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, false);
     pio_sm_config c = inmp441_pio_program_get_default_config(offset);
-    sm_config_set_sideset_pins(&c, ctrl_pin_start);
-    sm_config_set_set_pins(&c, data_pin, 1);
+    sm_config_set_sideset_pins(&c, clk_pin_start);
+    sm_config_set_in_pins(&c, data_pin);
     sm_config_set_in_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
-    float div = clock_get_hz(clk_sys) / inmp441_pio_max_clock_rate;
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_clkdiv(&c, clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }
