@@ -5,7 +5,7 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 
-#include "generated/ws2812_driver.pio.h"
+#include "pio/ws2812_driver.pio.h"
 
 struct WS2812PioDriver {
     PIO pio;

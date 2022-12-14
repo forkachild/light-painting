@@ -6,7 +6,7 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 
-#include "generated/inmp441_driver.pio.h"
+#include "pio/inmp441_driver.pio.h"
 
 struct INMP441PioDriver {
     PIO pio;

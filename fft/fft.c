@@ -48,26 +48,27 @@ uint *cache_reversed_indices(uint N) {
 
 ComplexType *cache_twiddles(uint N) {
     RealType angle_per_sample, angle;
-    uint halfN, k, sample;
+    uint halfN, sample;
     ComplexType *twiddles;
 
     halfN = N / 2;
     twiddles = malloc(halfN * sizeof(ComplexType));
-
     angle_per_sample = -2.0 * M_PI / N;
+    printf("dd\n");
 
     // Cache the twiddle factors
     // Compromise some space for HUGE performance gain
     // Cache locality baby!
-    for (sample = 0; sample < halfN; k++) {
+    for (sample = 0; sample < halfN; sample++) {
+        printf("DUdu\n");
         angle = angle_per_sample * sample;
-        twiddles[k] = cexp(angle * I);
+        twiddles[sample] = cexp(angle * I);
     }
 
     return twiddles;
 }
 
-void fft_dit_radix2(ComplexType *X, uint N, uint *reversed_indices,
+void fft_radix2_dit(ComplexType *X, uint N, uint *reversed_indices,
                     ComplexType *twiddles) {
     uint halfN, set_count, ops, set, start, butterfly, butterfly_top_idx,
         butterfly_bottom_idx, twiddle_idx;
@@ -109,6 +110,52 @@ void fft_dit_radix2(ComplexType *X, uint N, uint *reversed_indices,
                 // Finally the butterfly
                 X[butterfly_top_idx] = butterfly_top + butterfly_bottom;
                 X[butterfly_bottom_idx] = butterfly_top - butterfly_bottom;
+            }
+        }
+    }
+}
+
+void fft_radix2_dif(ComplexType *X, uint N, ComplexType *twiddles) {
+    uint halfN, set_count, ops, set, start, butterfly, butterfly_top_idx,
+        butterfly_bottom_idx, twiddle_idx;
+    ComplexType twiddle, butterfly_top, butterfly_bottom;
+
+    if (X == NULL || twiddles == NULL)
+        return;
+
+    halfN = N / 2;
+
+    // Perform the stages
+    // i is the number of sets to perform
+    // eg For N = 8
+    // i = 1,2,4
+    for (set_count = 1; set_count <= halfN; set_count <<= 1) {
+        // No of operations per set in this stage
+        // ops = 4,2,1
+        ops = halfN / set_count;
+
+        // Loop over sets
+        // j is the set #
+        for (set = 0; set < set_count; set++) {
+            // Start the butterflies
+            start = set * ops * 2;
+
+            // Loop over butterflies
+            for (butterfly = 0; butterfly < ops; butterfly++) {
+                butterfly_top_idx = start + butterfly;
+                butterfly_bottom_idx = start + butterfly + ops;
+                twiddle_idx = butterfly * set_count;
+
+                // Determine the twiddle to pre-multiply the lower
+                // half of the butterfly
+                twiddle = twiddles[twiddle_idx]; // Cache hit baby!
+                butterfly_top = X[butterfly_top_idx];
+                butterfly_bottom = X[butterfly_bottom_idx];
+
+                // Finally the butterfly
+                X[butterfly_top_idx] = butterfly_top + butterfly_bottom;
+                X[butterfly_bottom_idx] =
+                    twiddle * (butterfly_top - butterfly_bottom);
             }
         }
     }

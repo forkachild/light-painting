@@ -5,8 +5,7 @@
 .define din_cycles              24
 .define pad_cycles              6
 
-.define public sample_rate      51200
-.define public clk_per_sample   64
+.define public max_clock_rate   3200000
 
 .wrap_target
 ; Left word starts
@@ -46,8 +45,9 @@ static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint 
     sm_config_set_sideset_pins(&c, ctrl_pin_start);
     sm_config_set_set_pins(&c, data_pin, 1);
     sm_config_set_in_shift(&c, false, true, 24);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
 
-    float div = clock_get_hz(clk_sys) / (inmp441_pio_sample_rate * inmp441_pio_clk_per_sample);
+    float div = clock_get_hz(clk_sys) / inmp441_pio_max_clock_rate;
     sm_config_set_clkdiv(&c, div);
 
     pio_sm_init(pio, sm, offset, &c);

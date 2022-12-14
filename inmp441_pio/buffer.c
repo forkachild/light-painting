@@ -2,11 +2,7 @@
 
 #include "buffer.h"
 
-#ifdef RX_FIFO_JOIN_TX
-#define RX_FIFO_SKIP_STALE 8
-#else
 #define RX_FIFO_SKIP_STALE 4
-#endif
 
 struct INMP441PioBuffer {
     uint count;

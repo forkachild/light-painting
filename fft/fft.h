@@ -38,5 +38,17 @@ ComplexType *cache_twiddles(uint N);
  * @param reversed_indices Pointer to pre-computed array of reversed indices
  * @param twiddles Pointer to pre-computed array of roots of unity
  */
-void fft_dit_radix2(ComplexType *X, uint N, uint *reversed_indices,
+void fft_radix2_dit(ComplexType *X, uint N, uint *reversed_indices,
                     ComplexType *twiddles);
+
+/**
+ * @brief Fast and efficient Decimation-in-Frequency Radix-2 In-Place Fast
+ * Fourier Transform
+ *
+ * @param X Pointer to input samples. To be overwritten by (bit-reversed order)
+ * frequency bins
+ * @param N The number of samples. MUST BE A POWER OF 2
+ * @param reversed_indices Pointer to pre-computed array of reversed indices
+ * @param twiddles Pointer to pre-computed array of roots of unity
+ */
+void fft_radix2_dif(ComplexType *X, uint N, ComplexType *twiddles);

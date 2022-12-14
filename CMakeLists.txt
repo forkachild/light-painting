@@ -26,6 +26,8 @@ add_subdirectory(fft)
 
 add_executable(LightPainting)
 
+# add_definitions(-DPROFILE)
+
 target_sources(LightPainting
     PRIVATE
         program.c

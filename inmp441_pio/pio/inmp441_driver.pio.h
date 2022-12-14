@@ -15,8 +15,7 @@
 #define inmp441_pio_wrap_target 0
 #define inmp441_pio_wrap 11
 
-#define inmp441_pio_sample_rate 51200
-#define inmp441_pio_clk_per_sample 64
+#define inmp441_pio_max_clock_rate 3200000
 
 static const uint16_t inmp441_pio_program_instructions[] = {
             //     .wrap_target
@@ -57,7 +56,8 @@ static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint 
     sm_config_set_sideset_pins(&c, ctrl_pin_start);
     sm_config_set_set_pins(&c, data_pin, 1);
     sm_config_set_in_shift(&c, false, true, 24);
-    float div = clock_get_hz(clk_sys) / (inmp441_pio_sample_rate * inmp441_pio_clk_per_sample);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_NONE);
+    float div = clock_get_hz(clk_sys) / inmp441_pio_max_clock_rate;
     sm_config_set_clkdiv(&c, div);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
