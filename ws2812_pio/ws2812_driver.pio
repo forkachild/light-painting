@@ -10,13 +10,13 @@
 .define public BAUD 10000000
 
 .wrap_target
-bitloop:
+BITLOOP:
     out x  1       side LO [T1 - 1]  ; 0.3us LOW  => Read next bit, also completes previous bit LOW signal
-    jmp !x do_zero side HI [T1 - 1]  ; 0.3us HIGH => Decide jumping to transmitting a "0" or "1"
-do_one:
-    jmp bitloop    side HI [T1 - 1]  ; 0.3us HIGH => Generated pulse = (0.2 + 0.5)us HIGH + 0.3us LOW
-do_zero:
-    nop            side LO [T1 - 1]  ; 0.3us LOW  => Generated pulse = 0.2us HIGH + (0.5 + 0.3)us LOW
+    jmp !x TX_ZERO side HI [T1 - 1]  ; 0.3us HIGH => Decide jumping to transmitting a "0" or "1"
+TX_ONE:
+    jmp BITLOOP    side HI [T1 - 1]  ; 0.3us HIGH => Generated pulse = (0.3 + 0.3)us HIGH + 0.3us LOW
+TX_ZERO:
+    nop            side LO [T1 - 1]  ; 0.3us LOW  => Generated pulse = 0.3us HIGH + (0.3 + 0.3)us LOW
 .wrap
 
 % c-sdk {
@@ -31,7 +31,7 @@ static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint p
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    float div = clock_get_hz(clk_sys) / ws2812_pio_BAUD;
+    float div = (float)clock_get_hz(clk_sys) / ws2812_pio_BAUD;
     sm_config_set_clkdiv(&c, div);
 
     pio_sm_init(pio, sm, offset, &c);

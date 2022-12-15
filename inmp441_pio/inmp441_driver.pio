@@ -10,6 +10,7 @@
 .define R_CLK_LO        0b10
 .define R_CLK_HI        0b11
 
+; Keeping in mind the 320ns minimum pulse time
 .define PUBLIC HIGHEST_CLOCK_RATE 6410256
 
 .wrap_target
@@ -45,18 +46,22 @@ PUBLIC ENTRY_POINT:
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 
-static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint clk_pin_start, uint data_pin) {
+static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint sck_pin, uint ws_pin, uint data_pin) {
     pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, clk_pin_start);
-    pio_gpio_init(pio, clk_pin_start + 1);
+    pio_gpio_init(pio, sck_pin);
+    pio_gpio_init(pio, ws_pin);
     pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, false);
-    pio_sm_set_consecutive_pindirs(pio, sm, clk_pin_start, 2, true);
+
+    // IMPORTANT: sck_pin and ws_pin must be adjacent and in-order
+    pio_sm_set_consecutive_pindirs(pio, sm, sck_pin, 2, true);
 
     pio_sm_config c = inmp441_pio_program_get_default_config(offset);
-    sm_config_set_sideset_pins(&c, clk_pin_start);
+    sm_config_set_sideset_pins(&c, sck_pin);
     sm_config_set_in_pins(&c, data_pin);
     sm_config_set_in_shift(&c, false, true, inmp441_pio_DIN_CYCLES);
-    sm_config_set_clkdiv(&c, clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE);
+    
+    float div = (float)clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE;
+    sm_config_set_clkdiv(&c, div);
 
     gpio_pull_down(data_pin);
 

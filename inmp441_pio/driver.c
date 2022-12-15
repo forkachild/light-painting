@@ -14,10 +14,14 @@ struct INMP441PioDriver {
     uint pio_sm;
     uint pio_offset;
     uint dma_channel;
+    uint sck_pin;
+    uint ws_pin;
+    uint data_pin;
+    uint lr_config_pin;
 };
 
-void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint clk_pin_start,
-                             uint data_pin, uint lr_pin) {
+void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
+                             uint ws_pin, uint data_pin, uint lr_config_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -25,6 +29,10 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint clk_pin_start,
     INMP441PioDriver *driver;
 
     if (*pp_driver)
+        return;
+
+    // TODO: Extract into error codes in future
+    if (sck_pin != ws_pin - 1)
         return;
 
     // Start with first PIO
@@ -61,13 +69,14 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint clk_pin_start,
     }
 
     // Set LR selection to LOW to get words in L
-    gpio_init(lr_pin);
-    gpio_set_dir(lr_pin, true);
-    gpio_put(lr_pin, false);
+    gpio_init(lr_config_pin);
+    gpio_set_dir(lr_config_pin, true);
+    gpio_put(lr_config_pin, false);
 
     // Load the PIO program in memory and initialize it
     pio_offset = pio_add_program(pio, &inmp441_pio_program);
-    inmp441_pio_program_init(pio, pio_sm, pio_offset, clk_pin_start, data_pin);
+    inmp441_pio_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin,
+                             data_pin);
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
@@ -85,6 +94,10 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint clk_pin_start,
     driver->pio_sm = pio_sm;
     driver->pio_offset = pio_offset;
     driver->dma_channel = dma_channel;
+    driver->sck_pin = sck_pin;
+    driver->ws_pin = ws_pin;
+    driver->data_pin = data_pin;
+    driver->lr_config_pin = lr_config_pin;
 
     *pp_driver = driver;
 }
@@ -103,6 +116,7 @@ void inmp441_pio_driver_receive_blocking(INMP441PioDriver *p_driver,
 void inmp441_pio_driver_deinit(INMP441PioDriver **pp_driver) {
     INMP441PioDriver *driver;
 
+    // Check if valid in memory
     if (!(driver = *pp_driver))
         return;
 
@@ -114,5 +128,8 @@ void inmp441_pio_driver_deinit(INMP441PioDriver **pp_driver) {
     pio_remove_program(driver->pio, &inmp441_pio_program, driver->pio_offset);
     pio_sm_unclaim(driver->pio, driver->pio_sm);
 
+    gpio_deinit(driver->lr_config_pin);
+
+    // Ensures idempotence
     *pp_driver = NULL;
 }

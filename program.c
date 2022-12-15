@@ -17,8 +17,8 @@
 #define AUDIO_SAMPLES 64
 #define LED_COUNT 300
 
-#define LED_PIN 11
-// #define LED_GND 9
+#define LED_PIN 8
+#define LED_GND 9
 #define DATA_PIN 10
 #define SCK_PIN 11
 #define WS_PIN 12
@@ -38,13 +38,11 @@ int main() {
 
     stdio_init_all();
 
-    sleep_ms(5000);
+    gpio_init(LED_GND);
+    gpio_set_dir(LED_GND, true);
+    gpio_pull_down(LED_GND);
 
-    // gpio_init(LED_GND);
-    // gpio_set_dir(LED_GND, true);
-    // gpio_pull_down(LED_GND);
-
-    inmp441_pio_driver_init(&audio_driver, SCK_PIN, DATA_PIN, LR_PIN);
+    inmp441_pio_driver_init(&audio_driver, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN);
     if (!audio_driver) {
         printf("PIO Driver init failed\n");
         return EXIT_FAILURE;
@@ -90,8 +88,6 @@ int main() {
     absolute_time_t start_time, end_time;
 #endif
 
-    // uint pos = 0;
-
     for (;;) {
 
 #ifdef PROFILE
@@ -116,24 +112,12 @@ int main() {
                 2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
 
             color.channels.red = normalized_sample * 0xFF;
-            // printf("%d ", color.channels.red);
-            const uint start = i * 30;
+            printf("%d ", color.channels.red);
+            // const uint start = i * 30;
             // canvas_line(canvas, start, start + 30, color);
         }
 
-        // printf("\n");
-
-        // canvas_line(canvas, pos, pos + 1, (CanvasColor){.value =
-        // 0x00FF0000});
-        // ws2812_pio_driver_submit_buffer_blocking(
-        //     led_driver, canvas_get_grba_buffer(canvas));
-        // canvas_line(canvas, pos, pos + 1, (CanvasColor){.value =
-        // 0x00000000});
-
-        // pos++;
-
-        // if (pos == LED_COUNT)
-        //     pos = 0;
+        printf("\n");
 
 #ifdef PROFILE
         end_time = get_absolute_time();

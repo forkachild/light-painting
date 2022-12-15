@@ -21,17 +21,17 @@
 #define inmp441_pio_offset_ENTRY_POINT 9u
 
 static const uint16_t inmp441_pio_program_instructions[] = {
-    //     .wrap_target
-    0x4801, //  0: in     pins, 1         side 1
-    0x0040, //  1: jmp    x--, 0          side 0
-    0xe826, //  2: set    x, 6            side 1
-    0xa042, //  3: nop                    side 0
-    0x0843, //  4: jmp    x--, 3          side 1
-    0xf03f, //  5: set    x, 31           side 2
-    0xb842, //  6: nop                    side 3
-    0x1046, //  7: jmp    x--, 6          side 2
-    0xb842, //  8: nop                    side 3
-    0xe039, //  9: set    x, 25           side 0
+            //     .wrap_target
+    0x4801, //  0: in     pins, 1         side 1     
+    0x0040, //  1: jmp    x--, 0          side 0     
+    0xe826, //  2: set    x, 6            side 1     
+    0xa042, //  3: nop                    side 0     
+    0x0843, //  4: jmp    x--, 3          side 1     
+    0xf03f, //  5: set    x, 31           side 2     
+    0xb842, //  6: nop                    side 3     
+    0x1046, //  7: jmp    x--, 6          side 2     
+    0xb842, //  8: nop                    side 3     
+    0xe039, //  9: set    x, 25           side 0     
             //     .wrap
 };
 
@@ -42,35 +42,31 @@ static const struct pio_program inmp441_pio_program = {
     .origin = -1,
 };
 
-static inline pio_sm_config
-inmp441_pio_program_get_default_config(uint offset) {
+static inline pio_sm_config inmp441_pio_program_get_default_config(uint offset) {
     pio_sm_config c = pio_get_default_sm_config();
-    sm_config_set_wrap(&c, offset + inmp441_pio_wrap_target,
-                       offset + inmp441_pio_wrap);
+    sm_config_set_wrap(&c, offset + inmp441_pio_wrap_target, offset + inmp441_pio_wrap);
     sm_config_set_sideset(&c, 2, false, false);
     return c;
 }
 
 #include "hardware/clocks.h"
-#include <stdio.h>
-static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset,
-                                            uint clk_pin_start, uint data_pin) {
-    printf("INMP441 clk_pin_start: %d data_pin: %d\n", clk_pin_start, data_pin);
+#include "hardware/gpio.h"
+static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint sck_pin, uint ws_pin, uint data_pin) {
     pio_gpio_init(pio, data_pin);
-    pio_gpio_init(pio, clk_pin_start);
-    pio_gpio_init(pio, clk_pin_start + 1);
+    pio_gpio_init(pio, sck_pin);
+    pio_gpio_init(pio, ws_pin);
     pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, false);
-    pio_sm_set_consecutive_pindirs(pio, sm, clk_pin_start, 2, true);
+    // IMPORTANT: sck_pin and ws_pin must be adjacent and in-order
+    pio_sm_set_consecutive_pindirs(pio, sm, sck_pin, 2, true);
     pio_sm_config c = inmp441_pio_program_get_default_config(offset);
-    sm_config_set_sideset_pins(&c, clk_pin_start);
+    sm_config_set_sideset_pins(&c, sck_pin);
     sm_config_set_in_pins(&c, data_pin);
     sm_config_set_in_shift(&c, false, true, inmp441_pio_DIN_CYCLES);
-    sm_config_set_clkdiv(&c, clock_get_hz(clk_sys) /
-                                 inmp441_pio_HIGHEST_CLOCK_RATE);
+    float div = (float)clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE;
+    sm_config_set_clkdiv(&c, div);
     gpio_pull_down(data_pin);
     pio_sm_init(pio, sm, offset, &c);
-    pio_sm_exec(pio, sm,
-                pio_encode_jmp(offset + inmp441_pio_offset_ENTRY_POINT));
+    pio_sm_exec(pio, sm, pio_encode_jmp(offset + inmp441_pio_offset_ENTRY_POINT));
     pio_sm_set_enabled(pio, sm, true);
 }
 static inline void inmp441_pio_program_deinit(PIO pio, uint sm) {
@@ -79,3 +75,4 @@ static inline void inmp441_pio_program_deinit(PIO pio, uint sm) {
 }
 
 #endif
+

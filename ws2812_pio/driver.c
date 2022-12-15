@@ -21,18 +21,19 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     dma_channel_config dma_config;
     WS2812PioDriver *driver;
 
+    // Check valid in memory
     if (*pp_driver)
         return;
 
     // Start with pio0
     pio = pio0;
 
-    // Find an unused sm on PIO0
+    // Try to grab an unused State Machine
     if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1) {
-
         // Search the next, PIO1
         pio = pio1;
 
+        // Try to grab an unused State Machine
         if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
 
             // Guard if not
@@ -78,6 +79,7 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     driver->pio_offset = pio_offset;
     driver->dma_channel = dma_channel;
 
+    // Ensures idempotence
     *pp_driver = driver;
 }
 
@@ -89,7 +91,11 @@ void ws2812_pio_driver_submit_buffer_blocking(WS2812PioDriver *p_driver,
 }
 
 void ws2812_pio_driver_deinit(WS2812PioDriver **pp_driver) {
-    WS2812PioDriver *driver = *pp_driver;
+    WS2812PioDriver *driver;
+
+    // Ensure driver is valid in memory
+    if (!(driver = *pp_driver))
+        return;
 
     // Let go of the DMA
     dma_channel_abort(driver->dma_channel);
@@ -98,10 +104,12 @@ void ws2812_pio_driver_deinit(WS2812PioDriver **pp_driver) {
     // PIO ciao
     ws2812_pio_program_deinit(driver->pio, driver->pio_sm);
     pio_remove_program(driver->pio, &ws2812_pio_program, driver->pio_offset);
+    pio_sm_unclaim(driver->pio, driver->pio_sm);
 
     // Driver is free!
     free(driver);
 
     // As if nothing ever existed ;-)
+    // Ensures idempotence
     *pp_driver = NULL;
 }

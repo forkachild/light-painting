@@ -12,7 +12,12 @@ struct INMP441PioBuffer {
 };
 
 void inmp441_pio_buffer_init(INMP441PioBuffer **pp_buffer, uint count) {
-    INMP441PioBuffer *buffer = malloc(sizeof(INMP441PioBuffer));
+    INMP441PioBuffer *buffer;
+
+    if (*pp_buffer)
+        return;
+
+    buffer = malloc(sizeof(INMP441PioBuffer));
     buffer->count = count + TOTAL_WORDS_SKIP;
     buffer->p_padded_buffer =
         malloc((count + TOTAL_WORDS_SKIP) * sizeof(uint32_t));
@@ -41,6 +46,8 @@ void inmp441_pio_buffer_deinit(INMP441PioBuffer **pp_buffer) {
     if (!(buffer = *pp_buffer))
         return;
 
+    free(buffer->p_padded_buffer);
     free(buffer);
+
     *pp_buffer = NULL;
 }
