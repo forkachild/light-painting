@@ -21,6 +21,7 @@ TX_ZERO:
 
 % c-sdk {
 #include "hardware/clocks.h"
+#include <stdio.h>
 
 static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_gpio_init(pio, pin);

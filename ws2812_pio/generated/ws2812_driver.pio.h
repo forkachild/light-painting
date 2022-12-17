@@ -41,6 +41,7 @@ static inline pio_sm_config ws2812_pio_program_get_default_config(uint offset) {
 }
 
 #include "hardware/clocks.h"
+#include <stdio.h>
 static inline void ws2812_pio_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);

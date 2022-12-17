@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "buffer.h"
@@ -7,7 +8,7 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 
-#include "pio/inmp441_driver.pio.h"
+#include "generated/inmp441_driver_alt2.pio.h"
 
 struct INMP441PioDriver {
     PIO pio;
@@ -32,32 +33,25 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
         return;
 
     // TODO: Extract into error codes in future
-    if (sck_pin != ws_pin - 1)
+    if (sck_pin + 1 != ws_pin)
         return;
 
     // Start with first PIO
     pio = pio0;
 
-    // Find an unused State Machine on PIO0
-    if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1) {
-
-        // Search the other PIO
+    // Check if the program can be loaded in the pio
+    if (!pio_can_add_program(pio, &inmp441_pio_program)) {
+        // Try the next, PIO1
         pio = pio1;
 
-        if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
-
+        if (!pio_can_add_program(pio, &inmp441_pio_program))
             // Guard if not
             return;
     }
 
-    // Check if the program can be loaded in the PIO
-    if (!pio_can_add_program(pio, &inmp441_pio_program)) {
-        // Give up the State Machine claimed before returning
-        pio_sm_unclaim(pio, pio_sm);
-
-        // Guard if not
+    // Try to grab an unused State Machine
+    if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
         return;
-    }
 
     // Check if an unused dma channel is available
     if ((dma_channel = dma_claim_unused_channel(false)) == -1) {
@@ -80,20 +74,22 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
-    channel_config_set_dreq(&dma_config, pio_get_dreq(pio, pio_sm, false));
+
     channel_config_set_read_increment(&dma_config, false);
     channel_config_set_write_increment(&dma_config, true);
     channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
+    channel_config_set_dreq(&dma_config, pio_get_dreq(pio, pio_sm, false));
     channel_config_set_irq_quiet(&dma_config, true);
+
     dma_channel_configure(dma_channel, &dma_config, NULL, &pio->rxf[pio_sm], 0,
                           false);
 
     driver = malloc(sizeof(INMP441PioDriver));
 
     driver->pio = pio;
-    driver->pio_sm = pio_sm;
+    driver->pio_sm = (uint)pio_sm;
     driver->pio_offset = pio_offset;
-    driver->dma_channel = dma_channel;
+    driver->dma_channel = (uint)dma_channel;
     driver->sck_pin = sck_pin;
     driver->ws_pin = ws_pin;
     driver->data_pin = data_pin;
@@ -122,11 +118,12 @@ void inmp441_pio_driver_deinit(INMP441PioDriver **pp_driver) {
 
     if (dma_channel_is_busy(driver->dma_channel))
         dma_channel_wait_for_finish_blocking(driver->dma_channel);
+    dma_channel_abort(driver->dma_channel);
     dma_channel_unclaim(driver->dma_channel);
 
     inmp441_pio_program_deinit(driver->pio, driver->pio_sm);
+    // This also unclaims the State Machine
     pio_remove_program(driver->pio, &inmp441_pio_program, driver->pio_offset);
-    pio_sm_unclaim(driver->pio, driver->pio_sm);
 
     gpio_deinit(driver->lr_config_pin);
 

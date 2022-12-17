@@ -1,17 +1,17 @@
 .program inmp441_pio
 .side_set 2
 
-.define SKIP_CYCLES     31
-.define PUBLIC DIN_CYCLES      25
-.define PAD_CYCLES      6
+.define SKIP_CYCLES         31
+.define PUBLIC DIN_CYCLES   25
+.define PAD_CYCLES          6
 
-.define L_CLK_LO        0b00
-.define L_CLK_HI        0b01
-.define R_CLK_LO        0b10
-.define R_CLK_HI        0b11
+.define L_CLK_LO            0b00
+.define L_CLK_HI            0b01
+.define R_CLK_LO            0b10
+.define R_CLK_HI            0b11
 
 ; Keeping in mind the 320ns minimum pulse time
-.define PUBLIC HIGHEST_CLOCK_RATE 6410256
+.define public HIGHEST_CLOCK_RATE 6410256
 
 .wrap_target
 ; Left word starts
@@ -47,21 +47,20 @@ PUBLIC ENTRY_POINT:
 #include "hardware/gpio.h"
 
 static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset, uint sck_pin, uint ws_pin, uint data_pin) {
+    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, sck_pin, 2, true);
+    
     pio_gpio_init(pio, data_pin);
     pio_gpio_init(pio, sck_pin);
     pio_gpio_init(pio, ws_pin);
-    pio_sm_set_consecutive_pindirs(pio, sm, data_pin, 1, false);
-
-    // IMPORTANT: sck_pin and ws_pin must be adjacent and in-order
-    pio_sm_set_consecutive_pindirs(pio, sm, sck_pin, 2, true);
 
     pio_sm_config c = inmp441_pio_program_get_default_config(offset);
+
     sm_config_set_sideset_pins(&c, sck_pin);
     sm_config_set_in_pins(&c, data_pin);
     sm_config_set_in_shift(&c, false, true, inmp441_pio_DIN_CYCLES);
-    
-    float div = (float)clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE;
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / inmp441_pio_HIGHEST_CLOCK_RATE);
 
     gpio_pull_down(data_pin);
 

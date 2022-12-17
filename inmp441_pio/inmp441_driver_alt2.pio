@@ -1,0 +1,86 @@
+.program inmp441_pio
+.side_set 2
+
+.define SKIP_CYCLES     31
+.define DIN_CYCLES      24
+.define PAD_CYCLES      6
+
+.define L_CLK_LO        0b00
+.define L_CLK_HI        0b01
+.define R_CLK_LO        0b10
+.define R_CLK_HI        0b11
+
+; 125MHz * 0.325ns = 40.625
+.define public CLOCK_DIV_INT 40
+
+; 0.625 * 256 = 160
+.define public CLOCK_DIV_FRAC 160
+
+; First two bits are dummy (=0)
+.define public BITS_PER_WORD 26
+
+.wrap_target
+;                       WS    SCK
+;                         \  /
+L0: ;                      ||
+    in null, 1      side 0b11   ; (SAMPLE NULL BIT) Block on ISR until 
+;                          ||     RX FIFO accomodates space
+; Skip loop end            ||
+; Data loop start          ||
+L1: ;                      ||
+    set x, 25       side 0b00   ; We begin with the left channel
+L2: ;                      ||
+    in pins, 1      side 0b01   ; (SAMPLE BITS 0 to 24 LEFT) Sample a data bit on rising-edge
+    jmp x--, L2     side 0b00   ; Loop until x == 1 (25 times)
+; Data loop end            ||
+; Skip loop start          ||
+L3: ;                      ||
+    set x, 6        side 0b01   ; (SKIP BIT 25 LEFT) Another cycle
+L4: ;                      ||
+    nop             side 0b00   ; Skip bit loop
+    jmp x--, L4     side 0b01   ; (BITS 26 to 31 LEFT) Loop until x == 1 (6 times)
+; Skip loop end            ||
+; Skip loop start          ||
+L5: ;                      ||
+    set x, 31       side 0b10   ; Move to right channel, which we will entirely skip
+L6: ;                      ||
+    nop             side 0b11   ; (SKIP BITS 0 to 30 RIGHT)
+    jmp x--, L6     side 0b10   ;
+;                          ||
+;                         /  \
+;                       WS    SCK
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
+static inline void inmp441_pio_program_init(PIO pio, uint sm, uint offset,
+                                            uint sck_pin, uint ws_pin,
+                                            uint data_pin) {
+    pio_sm_set_pindirs_with_mask(
+        pio, sm, (1u << sck_pin) | (1u << ws_pin) | (0u << data_pin),
+        (1u << sck_pin) | (1u << ws_pin) | (1u << data_pin));
+    pio_gpio_init(pio, sck_pin);
+    pio_gpio_init(pio, ws_pin);
+    pio_gpio_init(pio, data_pin);
+    gpio_pull_down(data_pin);
+
+    pio_sm_config c = inmp441_pio_program_get_default_config(offset);
+    
+    sm_config_set_sideset_pins(&c, sck_pin);
+    sm_config_set_in_pins(&c, data_pin);
+    sm_config_set_in_shift(&c, false, true, inmp441_pio_BITS_PER_WORD);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    sm_config_set_clkdiv_int_frac(&c, inmp441_pio_CLOCK_DIV_INT, inmp441_pio_CLOCK_DIV_FRAC);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void inmp441_pio_program_deinit(PIO pio, uint sm) {
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_unclaim(pio, sm);
+}
+
+%}

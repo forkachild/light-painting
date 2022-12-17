@@ -19,20 +19,20 @@
 
 #define LED_PIN 8
 #define LED_GND 9
-#define DATA_PIN 10
-#define SCK_PIN 11
-#define WS_PIN 12
-#define LR_PIN 13
+#define SCK_PIN 26
+#define WS_PIN 27
+#define LR_PIN 28
+#define DATA_PIN 29
 
 #define AUDIO_INPUT_MAX_AMP ((1U << 24) - 1)
 
 int main() {
     INMP441PioDriver *audio_driver = NULL;
     INMP441PioBuffer *audio_buffer = NULL;
-    WS2812PioDriver *led_driver = NULL;
-    Canvas *canvas = NULL;
-    ComplexType *fft_samples = NULL;
-    ComplexType *twiddles = NULL;
+    // WS2812PioDriver *led_driver = NULL;
+    // Canvas *canvas = NULL;
+    float complex *fft_samples = NULL;
+    float complex *twiddles = NULL;
     uint *reversed_indices = NULL;
     CanvasColor color = {.value = 0x000000FF};
 
@@ -54,35 +54,37 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    ws2812_pio_driver_init(&led_driver, LED_PIN, LED_COUNT);
-    if (!led_driver) {
-        printf("LED Driver init failed\n");
-        return EXIT_FAILURE;
-    }
+    // ws2812_pio_driver_init(&led_driver, LED_PIN, LED_COUNT);
+    // if (!led_driver) {
+    //     printf("LED Driver init failed\n");
+    //     return EXIT_FAILURE;
+    // }
 
-    canvas_init(&canvas, LED_COUNT);
-    if (!canvas) {
-        printf("Canvas init failed\n");
-        return EXIT_FAILURE;
-    }
+    // canvas_init(&canvas, LED_COUNT);
+    // if (!canvas) {
+    //     printf("Canvas init failed\n");
+    //     return EXIT_FAILURE;
+    // }
 
-    fft_samples = malloc(AUDIO_SAMPLES * sizeof(ComplexType));
+    fft_samples = malloc(AUDIO_SAMPLES * sizeof(float complex));
     if (!fft_samples) {
         printf("FFT Samples alloc failed\n");
         return EXIT_FAILURE;
     }
 
-    twiddles = cache_twiddles(AUDIO_SAMPLES);
+    twiddles = malloc((AUDIO_SAMPLES / 2) * sizeof(float complex));
     if (!twiddles) {
-        printf("Twiddles cache failed\n");
+        printf("Twiddles alloc failed\n");
         return EXIT_FAILURE;
     }
+    fill_twiddles(twiddles, AUDIO_SAMPLES);
 
-    reversed_indices = cache_reversed_indices(AUDIO_SAMPLES);
+    reversed_indices = malloc(AUDIO_SAMPLES * sizeof(uint));
     if (!reversed_indices) {
-        printf("Reversed indices cache failed\n");
+        printf("Reversed indices alloc failed\n");
         return EXIT_FAILURE;
     }
+    fill_reversed_indices(reversed_indices, AUDIO_SAMPLES);
 
 #ifdef PROFILE
     absolute_time_t start_time, end_time;
@@ -102,13 +104,13 @@ int main() {
 
         for (uint i = 0; i < AUDIO_SAMPLES; i++)
             fft_samples[i] =
-                (RealType)audio_buffer_samples[i] / AUDIO_INPUT_MAX_AMP;
+                (float)audio_buffer_samples[i] / AUDIO_INPUT_MAX_AMP;
 
-        fft_radix2_dif(fft_samples, AUDIO_SAMPLES, twiddles);
+        fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
 
         // Samples 1 to 30
         for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
-            RealType normalized_sample =
+            float normalized_sample =
                 2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
 
             color.channels.red = normalized_sample * 0xFF;
@@ -129,8 +131,8 @@ int main() {
     free(reversed_indices);
     free(twiddles);
     free(fft_samples);
-    canvas_deinit(&canvas);
-    ws2812_pio_driver_deinit(&led_driver);
+    // canvas_deinit(&canvas);
+    // ws2812_pio_driver_deinit(&led_driver);
     inmp441_pio_buffer_deinit(&audio_buffer);
     inmp441_pio_driver_deinit(&audio_driver);
 
