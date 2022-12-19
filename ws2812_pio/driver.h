@@ -17,6 +17,8 @@ typedef struct WS2812PioDriver WS2812PioDriver;
  */
 void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count);
 
+uint ws2812_pio_driver_get_count(WS2812PioDriver *p_driver);
+
 /**
  * @brief Blocking submit a 1D pixel buffer of same size as LED count
  *

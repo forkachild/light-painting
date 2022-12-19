@@ -31,6 +31,9 @@ add_executable(LightPainting)
 target_sources(LightPainting
     PRIVATE
         program.c
+        rgb_status.c
+    INTERFACE
+        rgb_status.h
 )
 
 target_link_libraries(LightPainting

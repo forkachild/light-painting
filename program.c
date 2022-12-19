@@ -9,34 +9,39 @@
 #include "pico/stdlib.h"
 #include "pico/time.h"
 #include "pico/types.h"
+#include "rgb_status.h"
 #include "status/status.h"
 #include "ws2812_pio/driver.h"
 
 #include "hardware/gpio.h"
 
-#define AUDIO_SAMPLES 64
+#define AUDIO_SAMPLES 128
 #define LED_COUNT 300
 
-#define LED_PIN 8
-#define LED_GND 9
-#define SCK_PIN 26
-#define WS_PIN 27
-#define LR_PIN 28
-#define DATA_PIN 29
+#define SCK_PIN 3
+#define WS_PIN 4
+#define LR_PIN 5
+#define DATA_PIN 6
+#define LED_PIN 7
+#define LED_GND 8
 
 #define AUDIO_INPUT_MAX_AMP ((1U << 24) - 1)
 
 int main() {
     INMP441PioDriver *audio_driver = NULL;
     INMP441PioBuffer *audio_buffer = NULL;
-    // WS2812PioDriver *led_driver = NULL;
-    // Canvas *canvas = NULL;
+    RGBStatus *rgb_status = NULL;
+    WS2812PioDriver *led_driver = NULL;
+    Canvas *canvas = NULL;
     float complex *fft_samples = NULL;
     float complex *twiddles = NULL;
     uint *reversed_indices = NULL;
     CanvasColor color = {.value = 0x000000FF};
 
     stdio_init_all();
+
+    rgb_status_init(&rgb_status);
+    // rgb_status_set_color_rgb_blocking(rgb_status, 0, 0, 0);
 
     gpio_init(LED_GND);
     gpio_set_dir(LED_GND, true);
@@ -54,17 +59,17 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    // ws2812_pio_driver_init(&led_driver, LED_PIN, LED_COUNT);
-    // if (!led_driver) {
-    //     printf("LED Driver init failed\n");
-    //     return EXIT_FAILURE;
-    // }
+    ws2812_pio_driver_init(&led_driver, LED_PIN, LED_COUNT);
+    if (!led_driver) {
+        printf("LED Driver init failed\n");
+        return EXIT_FAILURE;
+    }
 
-    // canvas_init(&canvas, LED_COUNT);
-    // if (!canvas) {
-    //     printf("Canvas init failed\n");
-    //     return EXIT_FAILURE;
-    // }
+    canvas_init(&canvas, LED_COUNT);
+    if (!canvas) {
+        printf("Canvas init failed\n");
+        return EXIT_FAILURE;
+    }
 
     fft_samples = malloc(AUDIO_SAMPLES * sizeof(float complex));
     if (!fft_samples) {
@@ -86,15 +91,7 @@ int main() {
     }
     fill_reversed_indices(reversed_indices, AUDIO_SAMPLES);
 
-#ifdef PROFILE
-    absolute_time_t start_time, end_time;
-#endif
-
     for (;;) {
-
-#ifdef PROFILE
-        start_time = get_absolute_time();
-#endif
         // Receive the audio buffer
         inmp441_pio_driver_receive_blocking(audio_driver, audio_buffer);
 
@@ -108,31 +105,31 @@ int main() {
 
         fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
 
+        // for (uint i = 0; i < 16; i++)
+        //     printf("%.2f  ", fft_samples[i]);
+        // printf("\n");
+        // continue; // For testing
+
         // Samples 1 to 30
         for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
             float normalized_sample =
                 2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
 
             color.channels.red = normalized_sample * 0xFF;
-            printf("%d ", color.channels.red);
-            // const uint start = i * 30;
-            // canvas_line(canvas, start, start + 30, color);
+            const uint start = i * 30;
+            canvas_line(canvas, start, start + 30, color);
         }
 
-        printf("\n");
-
-#ifdef PROFILE
-        end_time = get_absolute_time();
-        printf("%llu\n",
-               to_us_since_boot(end_time) - to_us_since_boot(start_time));
-#endif
+        ws2812_pio_driver_submit_buffer_blocking(
+            led_driver, canvas_get_grba_buffer(canvas));
     }
 
     free(reversed_indices);
     free(twiddles);
     free(fft_samples);
-    // canvas_deinit(&canvas);
-    // ws2812_pio_driver_deinit(&led_driver);
+    canvas_deinit(&canvas);
+    ws2812_pio_driver_deinit(&led_driver);
+    rgb_status_deinit(&rgb_status);
     inmp441_pio_buffer_deinit(&audio_buffer);
     inmp441_pio_driver_deinit(&audio_driver);
 

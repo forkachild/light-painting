@@ -91,7 +91,7 @@ inline void fill_twiddles_d(double complex *twiddles, uint N) {
 void fft_dit_rad2(float complex *X, const float complex *twiddles,
                   const uint *reversed_indices, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx, twiddle_idx;
+        butterfly_top_idx, butterfly_bottom_idx;
     float complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
@@ -121,11 +121,10 @@ void fft_dit_rad2(float complex *X, const float complex *twiddles,
                 butterfly_top_idx = reversed_indices[start + butterfly];
                 butterfly_bottom_idx =
                     reversed_indices[start + butterfly + ops_per_set];
-                twiddle_idx = butterfly * set_count;
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
-                twiddle = twiddles[twiddle_idx]; // Cache hit baby!
+                twiddle = twiddles[butterfly * set_count]; // Cache hit baby!
                 butterfly_top = X[butterfly_top_idx];
                 butterfly_bottom = twiddle * X[butterfly_bottom_idx];
 
@@ -140,7 +139,7 @@ void fft_dit_rad2(float complex *X, const float complex *twiddles,
 void fft_dit_rad2_d(double complex *X, const double complex *twiddles,
                     const uint *reversed_indices, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx, twiddle_idx;
+        butterfly_top_idx, butterfly_bottom_idx;
     double complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
@@ -170,11 +169,10 @@ void fft_dit_rad2_d(double complex *X, const double complex *twiddles,
                 butterfly_top_idx = reversed_indices[start + butterfly];
                 butterfly_bottom_idx =
                     reversed_indices[start + butterfly + ops_per_set];
-                twiddle_idx = butterfly * set_count;
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
-                twiddle = twiddles[twiddle_idx]; // Cache hit baby!
+                twiddle = twiddles[butterfly * set_count]; // Cache hit baby!
                 butterfly_top = X[butterfly_top_idx];
                 butterfly_bottom = twiddle * X[butterfly_bottom_idx];
 
@@ -188,7 +186,7 @@ void fft_dit_rad2_d(double complex *X, const double complex *twiddles,
 
 void fft_dif_rad2(float complex *X, const float complex *twiddles, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx, twiddle_idx;
+        butterfly_top_idx, butterfly_bottom_idx;
     float complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
@@ -216,12 +214,11 @@ void fft_dif_rad2(float complex *X, const float complex *twiddles, uint N) {
             for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
                 butterfly_top_idx = start + butterfly;
                 butterfly_bottom_idx = start + butterfly + ops_per_set;
-                twiddle_idx = butterfly * set_count;
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
                 // Cache hit baby!
-                twiddle = twiddles[twiddle_idx];
+                twiddle = twiddles[butterfly * set_count];
                 butterfly_top = X[butterfly_top_idx];
                 butterfly_bottom = X[butterfly_bottom_idx];
 
@@ -236,7 +233,7 @@ void fft_dif_rad2(float complex *X, const float complex *twiddles, uint N) {
 
 void fft_dif_rad2_d(double complex *X, const double complex *twiddles, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx, twiddle_idx;
+        butterfly_top_idx, butterfly_bottom_idx;
     double complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
@@ -264,12 +261,11 @@ void fft_dif_rad2_d(double complex *X, const double complex *twiddles, uint N) {
             for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
                 butterfly_top_idx = start + butterfly;
                 butterfly_bottom_idx = start + butterfly + ops_per_set;
-                twiddle_idx = butterfly * set_count;
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
                 // Cache hit baby!
-                twiddle = twiddles[twiddle_idx];
+                twiddle = twiddles[butterfly * set_count];
                 butterfly_top = X[butterfly_top_idx];
                 butterfly_bottom = X[butterfly_bottom_idx];
 

@@ -27,12 +27,11 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
     int pio_sm, dma_channel;
     uint pio_offset;
     dma_channel_config dma_config;
-    INMP441PioDriver *driver;
+    INMP441PioDriver *driver = NULL;
 
     if (*pp_driver)
         return;
 
-    // TODO: Extract into error codes in future
     if (sck_pin + 1 != ws_pin)
         return;
 
