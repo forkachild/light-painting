@@ -3,11 +3,9 @@
 #include "buffer.h"
 #include "pico/types.h"
 
-typedef struct INMP441PioBuffer INMP441PioBuffer;
+typedef struct INMP441AudioBuffer INMP441AudioBuffer;
 
-void inmp441_pio_buffer_init(INMP441PioBuffer **pp_buffer, uint count);
-uint inmp441_pio_buffer_get_data_count(INMP441PioBuffer *p_driver);
-uint32_t *inmp441_pio_buffer_get_data_ptr(INMP441PioBuffer *p_buffer);
-uint inmp441_pio_buffer_get_trans_count(INMP441PioBuffer *p_buffer);
-uint32_t *inmp441_pio_buffer_get_trans_ptr(INMP441PioBuffer *p_buffer);
-void inmp441_pio_buffer_deinit(INMP441PioBuffer **pp_buffer);
+void inmp441_audio_buffer_init(INMP441AudioBuffer **pp_buffer, uint size);
+uint inmp441_audio_buffer_get_size(INMP441AudioBuffer *p_driver);
+uint32_t *inmp441_audio_buffer_get_ptr_unsafe(INMP441AudioBuffer *p_buffer);
+void inmp441_audio_buffer_deinit(INMP441AudioBuffer **pp_buffer);

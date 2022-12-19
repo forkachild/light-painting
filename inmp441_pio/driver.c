@@ -7,8 +7,9 @@
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
+#include "swapchain.h"
 
-#include "generated/inmp441_driver_alt2.pio.h"
+#include "generated/inmp441_driver.pio.h"
 
 struct INMP441PioDriver {
     PIO pio;
@@ -19,10 +20,11 @@ struct INMP441PioDriver {
     uint ws_pin;
     uint data_pin;
     uint lr_config_pin;
+    INMP441Swapchain swapchain;
 };
 
-void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
-                             uint ws_pin, uint data_pin, uint lr_config_pin) {
+void INMP441_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
+                         uint ws_pin, uint data_pin, uint lr_config_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -39,11 +41,12 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
     pio = pio0;
 
     // Check if the program can be loaded in the pio
-    if (!pio_can_add_program(pio, &inmp441_pio_program)) {
-        // Try the next, PIO1
+    if (!pio_can_add_program(pio, &INMP441_program)) {
+        // Try the other, PIO1
         pio = pio1;
 
-        if (!pio_can_add_program(pio, &inmp441_pio_program))
+        // Check again
+        if (!pio_can_add_program(pio, &INMP441_program))
             // Guard if not
             return;
     }
@@ -67,9 +70,8 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
     gpio_put(lr_config_pin, false);
 
     // Load the PIO program in memory and initialize it
-    pio_offset = pio_add_program(pio, &inmp441_pio_program);
-    inmp441_pio_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin,
-                             data_pin);
+    pio_offset = pio_add_program(pio, &INMP441_program);
+    INMP441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
@@ -97,18 +99,18 @@ void inmp441_pio_driver_init(INMP441PioDriver **pp_driver, uint sck_pin,
     *pp_driver = driver;
 }
 
-void inmp441_pio_driver_receive_blocking(INMP441PioDriver *p_driver,
-                                         INMP441PioBuffer *p_buffer) {
+void INMP441_driver_receive_blocking(INMP441PioDriver *p_driver,
+                                     INMP441AudioBuffer *p_buffer) {
     dma_channel_set_trans_count(p_driver->dma_channel,
-                                inmp441_pio_buffer_get_trans_count(p_buffer),
+                                inmp441_audio_buffer_get_trans_count(p_buffer),
                                 false);
     dma_channel_set_write_addr(p_driver->dma_channel,
-                               inmp441_pio_buffer_get_trans_ptr(p_buffer),
+                               inmp441_audio_buffer_get_trans_ptr(p_buffer),
                                true);
     dma_channel_wait_for_finish_blocking(p_driver->dma_channel);
 }
 
-void inmp441_pio_driver_deinit(INMP441PioDriver **pp_driver) {
+void INMP441_driver_deinit(INMP441PioDriver **pp_driver) {
     INMP441PioDriver *driver;
 
     // Check if valid in memory
@@ -120,9 +122,9 @@ void inmp441_pio_driver_deinit(INMP441PioDriver **pp_driver) {
     dma_channel_abort(driver->dma_channel);
     dma_channel_unclaim(driver->dma_channel);
 
-    inmp441_pio_program_deinit(driver->pio, driver->pio_sm);
+    INMP441_program_deinit(driver->pio, driver->pio_sm);
     // This also unclaims the State Machine
-    pio_remove_program(driver->pio, &inmp441_pio_program, driver->pio_offset);
+    pio_remove_program(driver->pio, &INMP441_program, driver->pio_offset);
 
     gpio_deinit(driver->lr_config_pin);
 

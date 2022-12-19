@@ -15,7 +15,7 @@
 
 #include "hardware/gpio.h"
 
-#define AUDIO_SAMPLES 128
+#define AUDIO_SAMPLES 256
 #define LED_COUNT 300
 
 #define SCK_PIN 3
@@ -29,7 +29,7 @@
 
 int main() {
     INMP441PioDriver *audio_driver = NULL;
-    INMP441PioBuffer *audio_buffer = NULL;
+    INMP441AudioBuffer *audio_buffer = NULL;
     RGBStatus *rgb_status = NULL;
     WS2812PioDriver *led_driver = NULL;
     Canvas *canvas = NULL;
@@ -53,7 +53,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    inmp441_pio_buffer_init(&audio_buffer, AUDIO_SAMPLES);
+    inmp441_audio_buffer_init(&audio_buffer, AUDIO_SAMPLES);
     if (!audio_buffer) {
         printf("PIO Buffer init failed\n");
         return EXIT_FAILURE;
@@ -97,7 +97,7 @@ int main() {
 
         // Get the received buffer ptr
         const uint32_t *audio_buffer_samples =
-            inmp441_pio_buffer_get_data_ptr(audio_buffer);
+            inmp441_audio_buffer_get_data_ptr(audio_buffer);
 
         for (uint i = 0; i < AUDIO_SAMPLES; i++)
             fft_samples[i] =
@@ -130,7 +130,7 @@ int main() {
     canvas_deinit(&canvas);
     ws2812_pio_driver_deinit(&led_driver);
     rgb_status_deinit(&rgb_status);
-    inmp441_pio_buffer_deinit(&audio_buffer);
+    inmp441_audio_buffer_deinit(&audio_buffer);
     inmp441_pio_driver_deinit(&audio_driver);
 
     return EXIT_SUCCESS;

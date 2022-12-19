@@ -13,6 +13,7 @@ target_sources(inmp441_pio
     PRIVATE
         driver.c
         buffer.c
+        swapchain.h
     INTERFACE
         driver.h
         buffer.h
