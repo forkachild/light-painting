@@ -13,6 +13,7 @@ struct INMP441Swapchain {
 };
 
 struct INMP441SwapchainNode {
+    uint index;
     uint32_t *p_buffer;
     INMP441SwapchainNode *next;
     INMP441SwapchainNode *prev;
@@ -38,6 +39,7 @@ static void swapchain_init(INMP441Swapchain *chain, uint buffer_size,
     for (i = 0; i < count; i++) {
         INMP441SwapchainNode *current = &chain->cursor[i];
         INMP441SwapchainNode *next = &chain->cursor[(i + 1) % count];
+        current->index = i + 1;
         current->p_buffer = (uint32_t *)malloc(buffer_size * sizeof(uint32_t));
         current->next = next;
         next->prev = current;
@@ -114,7 +116,7 @@ static inline void swapchain_return_after_write(INMP441Swapchain *chain,
  * @brief Borrow a Node for reading
  *
  *  Borrows the node at the cursor.
- *  Moves cursor to the previous node.
+ *  Moves cursor to the next node.
  *
  * @param chain
  * @return Node*
@@ -128,7 +130,7 @@ swapchain_borrow_for_read(INMP441Swapchain *chain) {
 
     taken->prev->next = taken->next;
     taken->next->prev = taken->prev;
-    chain->cursor = taken->prev;
+    chain->cursor = taken->next;
 
     return taken;
 }

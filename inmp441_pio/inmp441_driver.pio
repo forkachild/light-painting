@@ -10,10 +10,10 @@
 .define PAD_CYCLES      5
 .define SKIP_CYCLES     30
 
-.define public REQUIRED_CLOCK   6410256
+.define public REQUIRED_CLOCK   6144000
 
 ; First two bits are dummy(=0) + 24 bits
-.define public BITS_PER_WORD    26
+.define public BITS_IN_PER_WORD    26
 
 ;                           WS    SCK
 ;                             \  /
@@ -71,7 +71,7 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
 
     sm_config_set_in_pins(&c, data_pin);
     sm_config_set_sideset_pins(&c, sck_pin);
-    sm_config_set_in_shift(&c, false, true, INMP441_BITS_PER_WORD);
+    sm_config_set_in_shift(&c, false, true, INMP441_BITS_IN_PER_WORD);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
     pio_sm_init(pio, sm, offset, &c);

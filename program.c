@@ -29,13 +29,13 @@
 #define AUDIO_INPUT_MAX_AMP ((1U << 24) - 1)
 
 int main() {
-    RGBStatus *rgb_status = NULL;
+    // RGBStatus *rgb_status = NULL;
     WS2812PioDriver *led_driver = NULL;
     Canvas *canvas = NULL;
     float complex *fft_samples = NULL;
     float complex *twiddles = NULL;
     uint *reversed_indices = NULL;
-    // CanvasColor color = {.value = 0x000000FF};
+    CanvasColor color = {.value = 0x000000FF};
 
     stdio_init_all();
 
@@ -94,37 +94,34 @@ int main() {
         const uint32_t *audio_buffer_samples = swapchain_node_get_ptr(node);
 
         for (uint i = 0; i < AUDIO_SAMPLES; i++)
-            printf("%d  ", audio_buffer_samples[i]);
-        printf("\n");
+            fft_samples[i] =
+                (float)audio_buffer_samples[i] / AUDIO_INPUT_MAX_AMP;
 
         // Submit back the node to swapchain
         saved_irq = save_and_disable_interrupts();
         swapchain_return_after_read(swapchain, node);
         restore_interrupts(saved_irq);
 
-        // for (uint i = 0; i < AUDIO_SAMPLES; i++)
-        //     fft_samples[i] =
-        //         (float)audio_buffer_samples[i] / AUDIO_INPUT_MAX_AMP;
+        fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
 
-        // fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
-
-        // for (uint i = 0; i < 16; i++)
-        //     printf("%.2f  ", fft_samples[i]);
+        // for (uint i = 0; i < AUDIO_SAMPLES / 4; i++)
+        //     printf("%.2f  ", 2.f * cabs(fft_samples[reversed_indices[i]]) /
+        //                          AUDIO_SAMPLES);
         // printf("\n");
-        // continue; // For testing
+        // continue;
 
         // Samples 1 to 30
-        // for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
-        //     float normalized_sample =
-        //         2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
+        for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
+            float normalized_sample =
+                2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
 
-        //     color.channels.red = normalized_sample * 0xFF;
-        //     const uint start = i * 30;
-        //     canvas_line(canvas, start, start + 30, color);
-        // }
+            color.channels.red = normalized_sample * 0xFF;
+            const uint start = i * 30;
+            canvas_line(canvas, start, start + 30, color);
+        }
 
-        // ws2812_pio_driver_submit_buffer_blocking(
-        //     led_driver, canvas_get_grba_buffer(canvas));
+        ws2812_pio_driver_submit_buffer_blocking(
+            led_driver, canvas_get_grba_buffer(canvas));
     }
 
     inmp441_driver_stop_sampling();
@@ -134,7 +131,7 @@ int main() {
     free(fft_samples);
     canvas_deinit(&canvas);
     ws2812_pio_driver_deinit(&led_driver);
-    rgb_status_deinit(&rgb_status);
+    // rgb_status_deinit(&rgb_status);
     inmp441_driver_deinit();
 
     return EXIT_SUCCESS;

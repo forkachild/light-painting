@@ -15,7 +15,7 @@
 #define INMP441_wrap_target 0
 #define INMP441_wrap 9
 
-#define INMP441_REQUIRED_CLOCK 6410256
+#define INMP441_REQUIRED_CLOCK 6144000
 #define INMP441_BITS_PER_WORD 26
 
 static const uint16_t INMP441_program_instructions[] = {
