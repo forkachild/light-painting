@@ -4,9 +4,10 @@
 
 #include "canvas/canvas.h"
 #include "fft/fft.h"
-#include "inmp441_pio/buffer.h"
 #include "inmp441_pio/driver.h"
+#include "inmp441_pio/swapchain.h"
 #include "pico/stdlib.h"
+#include "pico/sync.h"
 #include "pico/time.h"
 #include "pico/types.h"
 #include "rgb_status.h"
@@ -15,7 +16,7 @@
 
 #include "hardware/gpio.h"
 
-#define AUDIO_SAMPLES 256
+#define AUDIO_SAMPLES 64
 #define LED_COUNT 300
 
 #define SCK_PIN 3
@@ -28,36 +29,24 @@
 #define AUDIO_INPUT_MAX_AMP ((1U << 24) - 1)
 
 int main() {
-    INMP441PioDriver *audio_driver = NULL;
-    INMP441AudioBuffer *audio_buffer = NULL;
     RGBStatus *rgb_status = NULL;
     WS2812PioDriver *led_driver = NULL;
     Canvas *canvas = NULL;
     float complex *fft_samples = NULL;
     float complex *twiddles = NULL;
     uint *reversed_indices = NULL;
-    CanvasColor color = {.value = 0x000000FF};
+    // CanvasColor color = {.value = 0x000000FF};
 
     stdio_init_all();
 
-    rgb_status_init(&rgb_status);
+    // rgb_status_init(&rgb_status);
     // rgb_status_set_color_rgb_blocking(rgb_status, 0, 0, 0);
 
     gpio_init(LED_GND);
     gpio_set_dir(LED_GND, true);
     gpio_pull_down(LED_GND);
 
-    inmp441_pio_driver_init(&audio_driver, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN);
-    if (!audio_driver) {
-        printf("PIO Driver init failed\n");
-        return EXIT_FAILURE;
-    }
-
-    inmp441_audio_buffer_init(&audio_buffer, AUDIO_SAMPLES);
-    if (!audio_buffer) {
-        printf("PIO Buffer init failed\n");
-        return EXIT_FAILURE;
-    }
+    inmp441_driver_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN);
 
     ws2812_pio_driver_init(&led_driver, LED_PIN, LED_COUNT);
     if (!led_driver) {
@@ -91,19 +80,33 @@ int main() {
     }
     fill_reversed_indices(reversed_indices, AUDIO_SAMPLES);
 
-    for (;;) {
-        // Receive the audio buffer
-        inmp441_pio_driver_receive_blocking(audio_driver, audio_buffer);
+    INMP441Swapchain *swapchain = inmp441_driver_get_swapchain();
+    INMP441SwapchainNode *node = NULL;
 
-        // Get the received buffer ptr
-        const uint32_t *audio_buffer_samples =
-            inmp441_audio_buffer_get_data_ptr(audio_buffer);
+    inmp441_driver_start_sampling();
+
+    for (;;) {
+        // Get a node from swapchain
+        uint32_t saved_irq = save_and_disable_interrupts();
+        node = swapchain_borrow_for_read(swapchain);
+        restore_interrupts(saved_irq);
+
+        const uint32_t *audio_buffer_samples = swapchain_node_get_ptr(node);
 
         for (uint i = 0; i < AUDIO_SAMPLES; i++)
-            fft_samples[i] =
-                (float)audio_buffer_samples[i] / AUDIO_INPUT_MAX_AMP;
+            printf("%d  ", audio_buffer_samples[i]);
+        printf("\n");
 
-        fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
+        // Submit back the node to swapchain
+        saved_irq = save_and_disable_interrupts();
+        swapchain_return_after_read(swapchain, node);
+        restore_interrupts(saved_irq);
+
+        // for (uint i = 0; i < AUDIO_SAMPLES; i++)
+        //     fft_samples[i] =
+        //         (float)audio_buffer_samples[i] / AUDIO_INPUT_MAX_AMP;
+
+        // fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
 
         // for (uint i = 0; i < 16; i++)
         //     printf("%.2f  ", fft_samples[i]);
@@ -111,18 +114,20 @@ int main() {
         // continue; // For testing
 
         // Samples 1 to 30
-        for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
-            float normalized_sample =
-                2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
+        // for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
+        //     float normalized_sample =
+        //         2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
 
-            color.channels.red = normalized_sample * 0xFF;
-            const uint start = i * 30;
-            canvas_line(canvas, start, start + 30, color);
-        }
+        //     color.channels.red = normalized_sample * 0xFF;
+        //     const uint start = i * 30;
+        //     canvas_line(canvas, start, start + 30, color);
+        // }
 
-        ws2812_pio_driver_submit_buffer_blocking(
-            led_driver, canvas_get_grba_buffer(canvas));
+        // ws2812_pio_driver_submit_buffer_blocking(
+        //     led_driver, canvas_get_grba_buffer(canvas));
     }
+
+    inmp441_driver_stop_sampling();
 
     free(reversed_indices);
     free(twiddles);
@@ -130,8 +135,7 @@ int main() {
     canvas_deinit(&canvas);
     ws2812_pio_driver_deinit(&led_driver);
     rgb_status_deinit(&rgb_status);
-    inmp441_audio_buffer_deinit(&audio_buffer);
-    inmp441_pio_driver_deinit(&audio_driver);
+    inmp441_driver_deinit();
 
     return EXIT_SUCCESS;
 }

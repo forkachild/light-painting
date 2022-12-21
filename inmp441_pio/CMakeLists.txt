@@ -12,11 +12,9 @@ endforeach()
 target_sources(inmp441_pio
     PRIVATE
         driver.c
-        buffer.c
-        swapchain.h
     INTERFACE
         driver.h
-        buffer.h
+        swapchain.h
 )
 
 target_link_libraries(inmp441_pio

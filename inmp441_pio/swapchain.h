@@ -1,145 +1,176 @@
 #pragma once
 
+#include "pico/types.h"
 #include <stdlib.h>
 
-#include "pico/critical_section.h"
-#include "swapchain.h"
+typedef struct INMP441SwapchainNode INMP441SwapchainNode;
+typedef struct INMP441Swapchain INMP441Swapchain;
 
-typedef struct {
-    uint32_t *p_buffer;
+struct INMP441Swapchain {
+    INMP441SwapchainNode *cursor;
     uint buffer_size;
-    bool is_obtained;
-} INMP441AudioFrame;
+    uint count;
+};
 
-typedef struct {
-    INMP441AudioFrame *p_frames;
-    uint frame_count;
-    critical_section_t lock;
-} INMP441Swapchain;
+struct INMP441SwapchainNode {
+    uint32_t *p_buffer;
+    INMP441SwapchainNode *next;
+    INMP441SwapchainNode *prev;
+};
 
 /**
- * @brief Initializes the swapchain with the number of buffers
+ * @brief Initialize the chain before use. Must be called before calling any
+ * other swapchain_*() methods
  *
- * @param pp_swapchain Address to a pointer to a struct in memory
- * @param count The number of buffers in the swapchain
+ * @param chain
+ * @param buffer_size
+ * @param count
  */
-static void inmp441_swapchain_init(INMP441Swapchain **pp_swapchain,
-                                   uint buffer_size, uint frame_count) {
-    INMP441Swapchain *swapchain = NULL;
-    INMP441AudioFrame *frames = NULL;
+static void swapchain_init(INMP441Swapchain *chain, uint buffer_size,
+                           uint count) {
     uint i;
 
-    if (*pp_swapchain)
-        return;
+    chain->cursor =
+        (INMP441SwapchainNode *)malloc(count * sizeof(INMP441SwapchainNode));
+    chain->buffer_size = buffer_size;
+    chain->count = count;
 
-    if (buffer_size == 0)
-        return;
-
-    if (frame_count < 2)
-        return;
-
-    frames = malloc(frame_count * sizeof(INMP441AudioFrame));
-
-    for (i = 0; i < frame_count; i++) {
-        INMP441AudioFrame *frame = &frames[i];
-        frame->p_buffer = malloc(buffer_size * sizeof(uint32_t));
-        frame->buffer_size = buffer_size;
-        frame->is_obtained = false;
+    for (i = 0; i < count; i++) {
+        INMP441SwapchainNode *current = &chain->cursor[i];
+        INMP441SwapchainNode *next = &chain->cursor[(i + 1) % count];
+        current->p_buffer = (uint32_t *)malloc(buffer_size * sizeof(uint32_t));
+        current->next = next;
+        next->prev = current;
     }
-
-    swapchain = malloc(sizeof(INMP441Swapchain));
-
-    swapchain->p_frames = frames;
-    swapchain->frame_count = frame_count;
-    critical_section_init(&swapchain->lock);
-
-    *pp_swapchain = swapchain;
 }
 
 /**
- * @brief Returns an index in the swapchain locked for use
+ * @brief Get the size of each buffer contained inside each node
  *
- * @param p_swapchain The pointer to the initialized driver in memory
- * @return int An index in the swapchain. -1 if none are free
+ * @param chain
+ * @return uint
  */
-static inline int
-inmp441_swapchain_obtain_idx_blocking(INMP441Swapchain *p_swapchain) {
-    int index = -1;
-
-    critical_section_enter_blocking(&p_swapchain->lock);
-
-    // Frame switching taking place. Must be atomic, otherwise
-    // invalid data read/write may happen
-    for (uint i = 0; i < p_swapchain->frame_count; i++) {
-        INMP441AudioFrame *frame = &p_swapchain->p_frames[i];
-        if (!frame->is_obtained) {
-            frame->is_obtained = true;
-            index = (int)i;
-            break;
-        }
-    }
-
-    critical_section_exit(&p_swapchain->lock);
-
-    return index;
+static inline uint swapchain_get_buffer_size(INMP441Swapchain *chain) {
+    return chain->buffer_size;
 }
 
 /**
- * @brief Submits the index and unlocks it in the swapchain
+ * @brief Get the number of nodes in the swapchain
  *
- * @param p_swapchain The pointer to the initialized driver in memory
- * @param idx The index of the frame being submitted
+ * @param chain
+ * @return uint
  */
-static inline void inmp441_swapchain_submit_idx(INMP441Swapchain *p_swapchain,
-                                                uint idx) {
-    critical_section_enter_blocking(&p_swapchain->lock);
-    p_swapchain->p_frames[idx].is_obtained = false;
-    critical_section_exit(&p_swapchain->lock);
+static inline uint swapchain_get_count(INMP441Swapchain *chain) {
+    return chain->count;
 }
 
 /**
- * @brief Get the actual frame referred by the index. Does not check the index
- * for range validity, hence unsafe
+ * @brief Borrow a Node for writing to it
  *
- * @param p_swapchain The pointer to the initialized driver in memory
- * @param idx The index of the frame to return
- * @return INMP441AudioFrame* The frame struct pointer
+ *  Borrows the node next to the cursor.
+ *  Keeps cursor unchanged.
+ *
+ * @param chain
+ * @return Node*
  */
-static inline INMP441AudioFrame *
-inmp441_swapchain_get_frame_unsafe(INMP441Swapchain *p_swapchain, uint idx) {
-    return &p_swapchain->p_frames[idx];
+static inline INMP441SwapchainNode *
+swapchain_borrow_for_write(INMP441Swapchain *chain) {
+    INMP441SwapchainNode *taken;
+
+    if ((taken = chain->cursor->next) == chain->cursor)
+        return NULL;
+
+    taken->prev->next = taken->next;
+    taken->next->prev = taken->prev;
+
+    return taken;
 }
 
 /**
- * @brief Destroys the swapchain and deletes from memory
+ * @brief Return a Node after writing
  *
- * @param pp_swapchain The address to a pointer of the driver
+ * Inserts the node next to the cursor.
+ * Moves the cursor to the inserted node.
+ *
+ * @param chain
+ * @param node
  */
-static void inmp441_swapchain_deinit(INMP441Swapchain **pp_swapchain) {
-    INMP441Swapchain *swapchain;
+static inline void swapchain_return_after_write(INMP441Swapchain *chain,
+                                                INMP441SwapchainNode *node) {
+    INMP441SwapchainNode *prev = chain->cursor;
+    INMP441SwapchainNode *next = chain->cursor->next;
+
+    // Insert the node
+    prev->next = node;
+    node->prev = prev;
+    node->next = next;
+    next->prev = node;
+
+    // Change the cursor
+    chain->cursor = node;
+}
+
+/**
+ * @brief Borrow a Node for reading
+ *
+ *  Borrows the node at the cursor.
+ *  Moves cursor to the previous node.
+ *
+ * @param chain
+ * @return Node*
+ */
+static inline INMP441SwapchainNode *
+swapchain_borrow_for_read(INMP441Swapchain *chain) {
+    INMP441SwapchainNode *taken;
+
+    if ((taken = chain->cursor) == chain->cursor->next)
+        return NULL;
+
+    taken->prev->next = taken->next;
+    taken->next->prev = taken->prev;
+    chain->cursor = taken->prev;
+
+    return taken;
+}
+
+/**
+ * @brief Return a Node after reading
+ *
+ * Inserts the node next to the cursor.
+ * Keeps cursor unchanged.
+ *
+ * @param chain
+ * @param node
+ */
+static inline void swapchain_return_after_read(INMP441Swapchain *chain,
+                                               INMP441SwapchainNode *node) {
+    INMP441SwapchainNode *prev = chain->cursor;
+    INMP441SwapchainNode *next = chain->cursor->next;
+
+    prev->next = node;
+    node->prev = prev;
+    node->next = next;
+    next->prev = node;
+}
+
+/**
+ * @brief Destroy the chain. Renders the chain useless after this call. Any
+ * further calls to swapchain_*() methods after this call is undefined
+ * behaviour.
+ *
+ * @param chain Pointer to the chain
+ */
+static void swapchain_deinit(INMP441Swapchain *chain) {
     uint i;
 
-    if (!(swapchain = *pp_swapchain))
+    if (!chain)
         return;
 
-    for (i = 0; i < swapchain->frame_count; i++) {
-        free(&swapchain->p_frames[i].p_buffer);
+    for (i = 0; i < chain->count; i++) {
+        free(chain->cursor[i].p_buffer);
     }
 
-    free(swapchain->p_frames);
-    free(swapchain);
-
-    *pp_swapchain = NULL;
-}
-
-/**
- * @brief Returns the size of the raw buffer underneath
- *
- * @param p_frame The pointer to the initialized audio frame in memory
- * @return uint The size of the raw buffer
- */
-static inline uint inmp441_audio_frame_get_size(INMP441AudioFrame *p_frame) {
-    return p_frame->buffer_size;
+    free(chain->cursor);
 }
 
 /**
@@ -148,7 +179,6 @@ static inline uint inmp441_audio_frame_get_size(INMP441AudioFrame *p_frame) {
  * @param p_frame The pointer to the initialized audio frame in memory
  * @return uint32_t* The pointer to the start of the buffer
  */
-static inline uint32_t *
-inmp441_audio_frame_get_ptr_unsafe(INMP441AudioFrame *p_frame) {
-    return p_frame->p_buffer;
+static inline uint32_t *swapchain_node_get_ptr(INMP441SwapchainNode *p_node) {
+    return p_node->p_buffer;
 }
