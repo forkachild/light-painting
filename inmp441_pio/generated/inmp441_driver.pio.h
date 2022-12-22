@@ -16,7 +16,7 @@
 #define INMP441_wrap 9
 
 #define INMP441_REQUIRED_CLOCK 6144000
-#define INMP441_BITS_PER_WORD 26
+#define INMP441_BITS_IN_PER_WORD 26
 
 static const uint16_t INMP441_program_instructions[] = {
             //     .wrap_target
@@ -58,17 +58,16 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
     pio_gpio_init(pio, sck_pin);
     pio_gpio_init(pio, ws_pin);
     pio_sm_config c = INMP441_program_get_default_config(offset);
-    float div = (float)clock_get_hz(clk_sys) / INMP441_REQUIRED_CLOCK;
-    sm_config_set_clkdiv(&c, div);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / INMP441_REQUIRED_CLOCK);
+    sm_config_set_in_pins(&c, data_pin);
+    sm_config_set_sideset_pins(&c, sck_pin);
+    sm_config_set_in_shift(&c, false, true, INMP441_BITS_IN_PER_WORD);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
     gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
     gpio_set_pulls(data_pin, false, true);
-    gpio_set_input_hysteresis_enabled(data_pin, true);
-    hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
-    sm_config_set_in_pins(&c, data_pin);
-    sm_config_set_sideset_pins(&c, sck_pin);
-    sm_config_set_in_shift(&c, false, true, INMP441_BITS_PER_WORD);
-    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    // gpio_set_input_hysteresis_enabled(data_pin, true);
+    // hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }

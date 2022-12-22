@@ -26,6 +26,7 @@ typedef struct Canvas Canvas;
 
 void canvas_init(Canvas **pp_canvas, uint count);
 void canvas_clear(Canvas *p_canvas, CanvasColor color);
+void canvas_point(Canvas *p_canvas, uint pos, CanvasColor color);
 void canvas_line(Canvas *p_canvas, uint start, uint end, CanvasColor color);
 void canvas_line_gradient(Canvas *p_canvas, uint start, uint end,
                           const CanvasColor *p_color_array,

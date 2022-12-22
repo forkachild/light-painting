@@ -12,10 +12,12 @@ typedef struct WS2812PioDriver WS2812PioDriver;
  * method can be called
  *
  * @param pp_driver The pointer to assign the address of the allocated driver
- * @param pin Which GPIO to use to transmit the WS2812 protocol
  * @param count The number of WS2812 serial LEDs to control
+ * @param pin Which GPIO to use to transmit the WS2812 protocol
+ * @param dma Whether DMA should be used
  */
-void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count);
+void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint count, uint pin,
+                            bool dma);
 
 uint ws2812_pio_driver_get_count(WS2812PioDriver *p_driver);
 

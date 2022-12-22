@@ -6,9 +6,12 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 
-#include "generated/ws2812_driver.pio.h"
+#include "generated/ws2812_driver_alt.pio.h"
 
 struct WS2812PioDriver {
+    // Number of LEDs
+    uint count;
+
     // The PIO block
     PIO pio;
 
@@ -19,15 +22,11 @@ struct WS2812PioDriver {
     uint pio_offset;
 
     // DMA channel used to receive burst data
-    uint dma_channel;
-
-    // Number of LEDs
-    uint count;
+    int dma_channel;
 };
 
-static bool is_dma_needed(uint count) { return count > 8; }
-
-void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
+void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint count, uint pin,
+                            bool dma) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -42,11 +41,11 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     pio = pio0;
 
     // Check if the program can be loaded in the pio
-    if (!pio_can_add_program(pio, &ws2812_pio_program)) {
+    if (!pio_can_add_program(pio, &ws2812_program)) {
         // Try the next, PIO1
         pio = pio1;
 
-        if (!pio_can_add_program(pio, &ws2812_pio_program))
+        if (!pio_can_add_program(pio, &ws2812_program))
             // Guard if not
             return;
     }
@@ -55,8 +54,7 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
         return;
 
-    if (is_dma_needed(count) &&
-        (dma_channel = dma_claim_unused_channel(false)) == -1) {
+    if (dma && (dma_channel = dma_claim_unused_channel(false)) == -1) {
         // Give up the sm claimed before returning
         pio_sm_unclaim(pio, pio_sm);
 
@@ -65,8 +63,8 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     }
 
     // Load the PIO program in memory and initialize it
-    pio_offset = pio_add_program(pio, &ws2812_pio_program);
-    ws2812_pio_program_init(pio, pio_sm, pio_offset, pin);
+    pio_offset = pio_add_program(pio, &ws2812_program);
+    ws2812_program_init(pio, pio_sm, pio_offset, pin);
 
     driver = malloc(sizeof(WS2812PioDriver));
 
@@ -75,7 +73,7 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
     driver->pio_offset = pio_offset;
     driver->count = count;
 
-    if (is_dma_needed(count)) {
+    if (dma) {
         // Setup the DMA for data bursts
         dma_config = dma_channel_get_default_config(dma_channel);
         channel_config_set_read_increment(&dma_config, true);
@@ -85,7 +83,9 @@ void ws2812_pio_driver_init(WS2812PioDriver **pp_driver, uint pin, uint count) {
         channel_config_set_irq_quiet(&dma_config, true);
         dma_channel_configure(dma_channel, &dma_config, &pio->txf[pio_sm], NULL,
                               count, false);
-        driver->dma_channel = (uint)dma_channel;
+        driver->dma_channel = dma_channel;
+    } else {
+        driver->dma_channel = -1;
     }
 
     // Ensures idempotence
@@ -103,7 +103,7 @@ void ws2812_pio_driver_submit_buffer_blocking(WS2812PioDriver *p_driver,
     if (!(driver = p_driver))
         return;
 
-    if (is_dma_needed(p_driver->count)) {
+    if (p_driver->dma_channel != -1) {
         dma_channel_set_read_addr(p_driver->dma_channel, p_buffer, true);
         dma_channel_wait_for_finish_blocking(p_driver->dma_channel);
     } else {
@@ -112,8 +112,6 @@ void ws2812_pio_driver_submit_buffer_blocking(WS2812PioDriver *p_driver,
             pio_sm_put_blocking(p_driver->pio, p_driver->pio_sm, p_buffer[i]);
         }
     }
-
-    sleep_us(300);
 }
 
 void ws2812_pio_driver_deinit(WS2812PioDriver **pp_driver) {
@@ -124,15 +122,15 @@ void ws2812_pio_driver_deinit(WS2812PioDriver **pp_driver) {
         return;
 
     // Let go of the DMA
-    if (is_dma_needed(driver->count)) {
+    if (driver->dma_channel != -1) {
         dma_channel_abort(driver->dma_channel);
         dma_channel_unclaim(driver->dma_channel);
     }
 
     // PIO ciao
-    ws2812_pio_program_deinit(driver->pio, driver->pio_sm);
+    ws2812_program_deinit(driver->pio, driver->pio_sm);
     // This also unclaims the State Machine
-    pio_remove_program(driver->pio, &ws2812_pio_program, driver->pio_offset);
+    pio_remove_program(driver->pio, &ws2812_program, driver->pio_offset);
 
     // Driver is free!
     free(driver);

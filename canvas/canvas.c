@@ -62,11 +62,14 @@ void canvas_clear(Canvas *p_canvas, CanvasColor color) {
     }
 }
 
-void canvas_line(Canvas *p_canvas, uint start, uint end, CanvasColor color) {
-    if (start < 0) {
-        start = 0;
-    }
+void canvas_point(Canvas *p_canvas, uint pos, CanvasColor color) {
+    if (pos >= p_canvas->count)
+        return;
 
+    p_canvas->p_buffer[pos] = color.value;
+}
+
+void canvas_line(Canvas *p_canvas, uint start, uint end, CanvasColor color) {
     if (end > p_canvas->count) {
         end = p_canvas->count;
     }

@@ -18,29 +18,29 @@
 ;                           WS    SCK
 ;                             \  /
 L0:;                           ||
-    in null, 1          side 0b11   ; (SAMPLE NULL BIT) Block on ISR until 
+    IN NULL, 1          side 0b11   ; (SAMPLE NULL BIT) Block on ISR until 
 ;                              ||   ; RX FIFO accomodates space
 ; Skip loop end                ||
 ; Data loop start              ||
 L1:;                           ||
-    set x, DIN_CYCLES   side 0b00   ; We begin with the left channel
+    SET X, DIN_CYCLES   side 0b00   ; We begin with the left channel
 L2:;                           ||
-    in pins, 1          side 0b01   ; (SAMPLE BITS 0 to 24 LEFT) Sample a data bit on rising-edge
-    jmp x--, L2         side 0b00   ; Loop until x == 1 (25 times)
+    IN PINS, 1          side 0b01   ; (SAMPLE BITS 0 to 24 LEFT) Sample a data bit on rising-edge
+    JMP X--, L2         side 0b00   ; Loop until x == 1 (25 times)
 ; Data loop end                ||
 ; Pad loop start               ||
 L3:;                           ||
-    set x, PAD_CYCLES   side 0b01   ; (PAD BIT 25 LEFT) Another cycle
+    SET X, PAD_CYCLES   side 0b01   ; (PAD BIT 25 LEFT) Another cycle
 L4:;                           ||
-    nop                 side 0b00   ; Skip bit loop
-    jmp x--, L4         side 0b01   ; (PAD BITS 26 to 31 LEFT) Loop until x == 1 (6 times)
+    NOP                 side 0b00   ; Skip bit loop
+    JMP X--, L4         side 0b01   ; (PAD BITS 26 to 31 LEFT) Loop until x == 1 (6 times)
 ; Pad loop end                 ||
 ; Skip loop start              ||
 L5:;                           ||
-    set x, SKIP_CYCLES  side 0b10   ; Move to right channel, which we will entirely skip
+    SET X, SKIP_CYCLES  side 0b10   ; Move to right channel, which we will entirely skip
 L6:;                           ||
-    nop                 side 0b11   ; (SKIP BITS 0 to 30 RIGHT)
-    jmp x--, L6         side 0b10   
+    NOP                 side 0b11   ; (SKIP BITS 0 to 30 RIGHT)
+    JMP X--, L6         side 0b10   
 ;                              ||
 ;                             /  \
 ;                           WS    SCK
@@ -60,19 +60,17 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
 
     pio_sm_config c = INMP441_program_get_default_config(offset);
     
-    float div = (float)clock_get_hz(clk_sys) / INMP441_REQUIRED_CLOCK;
-    sm_config_set_clkdiv(&c, div);
-
-    gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
-    gpio_set_pulls(data_pin, false, true);
-    gpio_set_input_hysteresis_enabled(data_pin, true);
-    hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
-
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / INMP441_REQUIRED_CLOCK);
     sm_config_set_in_pins(&c, data_pin);
     sm_config_set_sideset_pins(&c, sck_pin);
     sm_config_set_in_shift(&c, false, true, INMP441_BITS_IN_PER_WORD);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+    gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
+    gpio_set_pulls(data_pin, false, true);
+    // gpio_set_input_hysteresis_enabled(data_pin, true);
+    // hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
 
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);

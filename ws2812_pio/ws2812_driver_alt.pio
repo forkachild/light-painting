@@ -1,17 +1,35 @@
 .program ws2812
 .side_set 1
 
-; Time for instruction = 0.3us = 300ns
-
 .define public baud 10000000
 
-bitloop:
-    out x  1       side 0b0 [1] ; 0.6us LO => Read next bit, also completes LO part
-    jmp !x tx_zero side 0b1     ; 0.3us HI => Decide jumping to transmitting a "0" or "1"
+; Factors of 168
+; 1, 2, 3, 4, 6, 7, 8, 12, 14, 21, 24, 28, 42, 56, 84, 168
+; = 12 x 14
+; = 8 x 21
+; = 7 x 24
+; = 6 x 28
+; = 4 x 42
+; = 3 x 56
+; = 2 x 84
+; = 1 x 168
+
+.wrap_target
+entry:
+    jmp !osre, tx       side 0          ; 0.3us If we have stuff to transmit, go ahead!
+sync:
+    set x, (12 - 1)     side 0          ; 0.3us Or else let's start the end of transmission! 50us line lo
+sync_loop:
+    jmp x--, sync_loop  side 0  [14 - 1] ; 4.2us (x12 times = 50us)
+
+tx:
+    out x, 1            side 0          ; 0.3us
+    jmp !x, tx_zero     side 1          ; 0.3us
 tx_one:
-    jmp bitloop    side 0b1     ; 0.3us HI => Modulation = (0.3us + 0.3us) HI + (0.3us) LO
+    jmp entry           side 1
 tx_zero:
-    nop            side 0b0     ; 0.3us LO => Modulation = (0.3us) HI + (0.3us + 0.3us) LO
+    nop                 side 0          ; 0.3us
+.wrap
 
 % c-sdk {
 #include "hardware/clocks.h"

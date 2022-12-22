@@ -18,7 +18,7 @@ void rgb_status_init(RGBStatus **pp_status) {
     if (*pp_status)
         return;
 
-    ws2812_pio_driver_init(&driver, STATUS_LED_PIN, 1);
+    ws2812_pio_driver_init(&driver, 1, STATUS_LED_PIN, false);
 
     status = malloc(sizeof(RGBStatus));
     status->p_driver = driver;
