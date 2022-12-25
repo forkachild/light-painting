@@ -124,7 +124,7 @@ int main() {
         restore_interrupts(saved_irq);
 
         memcpy(swapchain_node_get_buffer_ptr(node),
-               canvas_get_grba_buffer(&canvas), LED_COUNT);
+               canvas_get_grba_buffer(&canvas), LED_COUNT * sizeof(uint32_t));
 
         saved_irq = save_and_disable_interrupts();
         swapchain_return_after_write(led_swapchain, node);

@@ -15,10 +15,9 @@
 check_osr:
     jmp !osre, tx_bit   side 0          ; 0.3us If we have stuff to transmit, go ahead!
 public sync:
-    set x, (31 - 1)     side 0          ; 0.3us Or else let's start the end of transmission! 50us line lo
+    set x, (14 - 1)     side 0          ; 0.3us Or else let's start the end of transmission! 50us line lo
 sync_loop:
-    nop                 side 0 [14 - 1]
-    jmp x--, sync_loop  side 0 [14 - 1] ; 4.2us (0.3us * 14 * 12 > 50us)
+    jmp x--, sync_loop  side 0 [15 - 1] ; 4.2us (0.3us * 14 * 15 = 63us > 50us) Safe SYNC
 tx_bit:
     out x, 1            side 0          ; 0.3us
     jmp !x, tx_zero     side 1          ; 0.3us

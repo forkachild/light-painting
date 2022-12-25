@@ -13,7 +13,7 @@
 // ------ //
 
 #define ws2812_wrap_target 0
-#define ws2812_wrap 7
+#define ws2812_wrap 6
 
 #define ws2812_baud 10000000
 
@@ -21,21 +21,20 @@
 
 static const uint16_t ws2812_program_instructions[] = {
             //     .wrap_target
-    0x00e4, //  0: jmp    !osre, 4        side 0     
-    0xe03e, //  1: set    x, 30           side 0     
-    0xad42, //  2: nop                    side 0 [13]
-    0x0d42, //  3: jmp    x--, 2          side 0 [13]
-    0x6021, //  4: out    x, 1            side 0     
-    0x1027, //  5: jmp    !x, 7           side 1     
-    0x1000, //  6: jmp    0               side 1     
-    0xa042, //  7: nop                    side 0     
+    0x00e3, //  0: jmp    !osre, 3        side 0     
+    0xe02c, //  1: set    x, 12           side 0     
+    0x0d42, //  2: jmp    x--, 2          side 0 [13]
+    0x6021, //  3: out    x, 1            side 0     
+    0x1026, //  4: jmp    !x, 6           side 1     
+    0x1000, //  5: jmp    0               side 1     
+    0xa042, //  6: nop                    side 0     
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program ws2812_program = {
     .instructions = ws2812_program_instructions,
-    .length = 8,
+    .length = 7,
     .origin = -1,
 };
 

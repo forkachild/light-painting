@@ -96,7 +96,7 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
     pio_offset = pio_add_program(pio, &INMP441_program);
     INMP441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
 
-    swapchain_init(&swapchain, samples, SWAPCHAIN_LENGTH);
+    swapchain_init(&swapchain, samples * sizeof(uint32_t), SWAPCHAIN_LENGTH);
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
