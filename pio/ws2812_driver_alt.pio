@@ -1,7 +1,8 @@
 ; Fully autonomous WS2812 RGB driver
+;
 ; It keeps transmitting bits as long as the OSR is not empty
-; And when it is, it moves to a 50us LO sync pulse and waits
-; for more data to transmit
+; after that it automatically moves to a 50us LO sync pulse
+; and waits for more data to transmit
 
 .program ws2812
 .side_set 1
