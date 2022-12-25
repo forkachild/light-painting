@@ -1,13 +1,10 @@
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "ws2812_pio.h"
-
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
-
 #include "pio/ws2812_driver_alt.pio.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 typedef struct {
     // Number of LEDs
@@ -29,7 +26,7 @@ typedef struct {
     Swapchain swapchain;
 
     // The node of the swapchain read last
-    SwapchainNode *last_read_node;
+    SwapchainNode *read_node;
 
     // Whether the driver is initialized
     bool is_init;
@@ -38,14 +35,12 @@ typedef struct {
 static WS2812PIODriver driver = {.is_init = false};
 
 static void dma_irq_handler() {
-    swapchain_return_after_read(&driver.swapchain, driver.last_read_node);
-    driver.last_read_node = swapchain_borrow_for_read(&driver.swapchain);
-
+    swapchain_return_after_read(&driver.swapchain, driver.read_node);
+    driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
     dma_channel_acknowledge_irq1(driver.dma_channel);
-
-    dma_channel_set_read_addr(
-        driver.dma_channel,
-        swapchain_node_get_buffer_ptr(driver.last_read_node), true);
+    dma_channel_set_read_addr(driver.dma_channel,
+                              swapchain_node_get_buffer_ptr(driver.read_node),
+                              true);
 }
 
 Result ws2812_init(uint count, uint pin) {
@@ -121,15 +116,17 @@ int ws2812_get_count() {
 
 void ws2812_start_transmission() {
     dma_channel_set_irq1_enabled(driver.dma_channel, true);
-
-    // Trigger the DMA through the handler
-    dma_irq_handler();
+    driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
+    dma_channel_set_read_addr(driver.dma_channel,
+                              swapchain_node_get_buffer_ptr(driver.read_node),
+                              true);
 }
 
 void ws2812_stop_transmission() {
     dma_channel_set_irq1_enabled(driver.dma_channel, false);
     dma_channel_abort(driver.dma_channel);
     dma_channel_acknowledge_irq1(driver.dma_channel);
+    swapchain_return_after_read(&driver.swapchain, driver.read_node);
 }
 
 Swapchain *ws2812_get_swapchain() { return &driver.swapchain; }

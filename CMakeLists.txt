@@ -32,6 +32,7 @@ target_sources(LightPainting
         ws2812_pio.c
         inmp441_pio.c
         swapchain.c
+        canvas.c
         fft.c
 )
 

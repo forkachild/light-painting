@@ -1,9 +1,6 @@
-#include <complex.h>
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "canvas.h"
 #include "fft.h"
+#include "hardware/gpio.h"
 #include "inmp441_pio.h"
 #include "pico/stdlib.h"
 #include "pico/sync.h"
@@ -12,8 +9,9 @@
 #include "status.h"
 #include "swapchain.h"
 #include "ws2812_pio.h"
-
-#include "hardware/gpio.h"
+#include <complex.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #define AUDIO_SAMPLES 64
 #define LED_COUNT 300
@@ -37,11 +35,12 @@ int main() {
 
     stdio_init_all();
 
+    // Providing an extra ground pin for the LEDs
     gpio_init(LED_GND);
     gpio_set_dir(LED_GND, true);
     gpio_put(LED_GND, false);
 
-    inmp441_driver_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN);
+    inmp441_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN);
 
     if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_ALL_OK) {
         printf("LED Driver init failed\n");
@@ -73,11 +72,12 @@ int main() {
     }
     fill_reversed_indices(reversed_indices, AUDIO_SAMPLES);
 
-    Swapchain *audio_swapchain = inmp441_driver_get_swapchain();
+    Swapchain *audio_swapchain = inmp441_get_swapchain();
     Swapchain *led_swapchain = ws2812_get_swapchain();
     SwapchainNode *node = NULL;
 
-    inmp441_driver_start_sampling();
+    inmp441_start_sampling();
+    ws2812_start_transmission();
 
     for (;;) {
         saved_irq = save_and_disable_interrupts();
@@ -118,14 +118,15 @@ int main() {
         restore_interrupts(saved_irq);
     }
 
-    inmp441_driver_stop_sampling();
+    inmp441_stop_sampling();
+    ws2812_stop_transmission();
 
     free(reversed_indices);
     free(twiddles);
     free(fft_samples);
     canvas_deinit(&canvas);
     ws2812_deinit();
-    inmp441_driver_deinit();
+    inmp441_deinit();
 
     return EXIT_SUCCESS;
 }

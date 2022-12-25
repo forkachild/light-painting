@@ -1,8 +1,6 @@
-
-#include <stdlib.h>
-
-#include "pico/types.h"
 #include "swapchain.h"
+#include "pico/types.h"
+#include <stdlib.h>
 
 /**
  * @brief Initialize the chain before use. Must be called before calling any

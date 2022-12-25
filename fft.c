@@ -1,10 +1,9 @@
+#include "fft.h"
+#include "pico/stdlib.h"
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "fft.h"
-#include "pico/stdlib.h"
 
 /**
  * @brief Ultra fast log base-2 of only 2^n numbers. For others, the

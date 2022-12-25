@@ -1,16 +1,14 @@
 #include "inmp441_pio.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "pico/sync.h"
-#include "swapchain.h"
-
 #include "pio/inmp441_driver.pio.h"
+#include "swapchain.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 #define SWAPCHAIN_LENGTH 3
 
@@ -24,24 +22,24 @@ typedef struct {
     uint data_pin;
     uint lr_config_pin;
     Swapchain swapchain;
-    SwapchainNode *last_write_node;
+    SwapchainNode *write_node;
     bool is_init;
-} INMP441PioDriver;
+} INMP441PIODriver;
 
-static INMP441PioDriver driver = {.is_init = false};
+static INMP441PIODriver driver = {.is_init = false};
 
 static void dma_irq_handler() {
-    swapchain_return_after_write(&driver.swapchain, driver.last_write_node);
-    driver.last_write_node = swapchain_borrow_for_write(&driver.swapchain);
+    swapchain_return_after_write(&driver.swapchain, driver.write_node);
+    driver.write_node = swapchain_borrow_for_write(&driver.swapchain);
 
     dma_channel_acknowledge_irq0(driver.dma_channel);
-    dma_channel_set_write_addr(
-        driver.dma_channel,
-        swapchain_node_get_buffer_ptr(driver.last_write_node), true);
+    dma_channel_set_write_addr(driver.dma_channel,
+                               swapchain_node_get_buffer_ptr(driver.write_node),
+                               true);
 }
 
-void inmp441_driver_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
-                         uint lr_config_pin) {
+void inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
+                  uint lr_config_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -103,8 +101,6 @@ void inmp441_driver_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
     channel_config_set_write_increment(&dma_config, true);
     channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
     channel_config_set_dreq(&dma_config, pio_get_dreq(pio, pio_sm, false));
-    channel_config_set_irq_quiet(&dma_config, false);
-
     irq_set_exclusive_handler(DMA_IRQ_0, dma_irq_handler);
     irq_set_enabled(DMA_IRQ_0, true);
 
@@ -120,26 +116,29 @@ void inmp441_driver_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
     driver.is_init = true;
 }
 
-void inmp441_driver_start_sampling() {
+void inmp441_start_sampling() {
     dma_channel_set_irq0_enabled(driver.dma_channel, true);
-    dma_irq_handler();
+    driver.write_node = swapchain_borrow_for_write(&driver.swapchain);
+    dma_channel_set_write_addr(driver.dma_channel,
+                               swapchain_node_get_buffer_ptr(driver.write_node),
+                               true);
 }
 
-void inmp441_driver_stop_sampling() {
+void inmp441_stop_sampling() {
     dma_channel_set_irq0_enabled(driver.dma_channel, false);
     dma_channel_abort(driver.dma_channel);
     dma_channel_acknowledge_irq0(driver.dma_channel);
 }
 
-Swapchain *inmp441_driver_get_swapchain() { return &driver.swapchain; }
+Swapchain *inmp441_get_swapchain() { return &driver.swapchain; }
 
-void inmp441_driver_deinit() {
+void inmp441_deinit() {
     // Check if valid in memory
     if (!driver.is_init)
         return;
 
     swapchain_deinit(&driver.swapchain);
-    inmp441_driver_stop_sampling();
+    inmp441_stop_sampling();
 
     INMP441_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
