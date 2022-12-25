@@ -1,32 +1,28 @@
+; Fully autonomous WS2812 RGB driver
+; It keeps transmitting bits as long as the OSR is not empty
+; And when it is, it moves to a 50us LO sync pulse and waits
+; for more data to transmit
+
 .program ws2812
 .side_set 1
 
 .define public baud 10000000
 
-; Factors of 168
-; 1, 2, 3, 4, 6, 7, 8, 12, 14, 21, 24, 28, 42, 56, 84, 168
-; = 12 x 14
-; = 8 x 21
-; = 7 x 24
-; = 6 x 28
-; = 4 x 42
-; = 3 x 56
-; = 2 x 84
-; = 1 x 168
-
 .wrap_target
-entry:
-    jmp !osre, tx       side 0          ; 0.3us If we have stuff to transmit, go ahead!
+; Check whether the OSR is empty
+; If yes, so no more data, continue to transmit a 50us LO sync pulse
+; If not, jump to transmitting one bit
+check_osr:
+    jmp !osre, tx_bit   side 0          ; 0.3us If we have stuff to transmit, go ahead!
 sync:
     set x, (12 - 1)     side 0          ; 0.3us Or else let's start the end of transmission! 50us line lo
 sync_loop:
-    jmp x--, sync_loop  side 0  [14 - 1] ; 4.2us (x12 times = 50us)
-
-tx:
+    jmp x--, sync_loop  side 0 [14 - 1] ; 4.2us (0.3us * 14 * 12 ~ 50us)
+tx_bit:
     out x, 1            side 0          ; 0.3us
     jmp !x, tx_zero     side 1          ; 0.3us
 tx_one:
-    jmp entry           side 1
+    jmp check_osr       side 1          ; 0.3us
 tx_zero:
     nop                 side 0          ; 0.3us
 .wrap

@@ -1,23 +1,8 @@
-#pragma once
 
-#include "pico/types.h"
 #include <stdlib.h>
 
-typedef struct INMP441SwapchainNode INMP441SwapchainNode;
-typedef struct INMP441Swapchain INMP441Swapchain;
-
-struct INMP441Swapchain {
-    INMP441SwapchainNode *cursor;
-    uint buffer_size;
-    uint count;
-};
-
-struct INMP441SwapchainNode {
-    uint index;
-    uint32_t *p_buffer;
-    INMP441SwapchainNode *next;
-    INMP441SwapchainNode *prev;
-};
+#include "pico/types.h"
+#include "swapchain.h"
 
 /**
  * @brief Initialize the chain before use. Must be called before calling any
@@ -27,20 +12,19 @@ struct INMP441SwapchainNode {
  * @param buffer_size
  * @param count
  */
-static void swapchain_init(INMP441Swapchain *chain, uint buffer_size,
-                           uint count) {
+void swapchain_init(Swapchain *chain, uint buffer_size, uint count) {
     uint i;
+    SwapchainNode *current, *next;
 
-    chain->cursor =
-        (INMP441SwapchainNode *)malloc(count * sizeof(INMP441SwapchainNode));
+    chain->cursor = (SwapchainNode *)malloc(count * sizeof(SwapchainNode));
     chain->buffer_size = buffer_size;
     chain->count = count;
 
     for (i = 0; i < count; i++) {
-        INMP441SwapchainNode *current = &chain->cursor[i];
-        INMP441SwapchainNode *next = &chain->cursor[(i + 1) % count];
+        current = &chain->cursor[i];
+        next = &chain->cursor[(i + 1) % count];
         current->index = i + 1;
-        current->p_buffer = (uint32_t *)malloc(buffer_size * sizeof(uint32_t));
+        current->buffer = (uint32_t *)malloc(buffer_size * sizeof(uint32_t));
         current->next = next;
         next->prev = current;
     }
@@ -52,9 +36,7 @@ static void swapchain_init(INMP441Swapchain *chain, uint buffer_size,
  * @param chain
  * @return uint
  */
-static inline uint swapchain_get_buffer_size(INMP441Swapchain *chain) {
-    return chain->buffer_size;
-}
+uint swapchain_get_buffer_size(Swapchain *chain) { return chain->buffer_size; }
 
 /**
  * @brief Get the number of nodes in the swapchain
@@ -62,9 +44,7 @@ static inline uint swapchain_get_buffer_size(INMP441Swapchain *chain) {
  * @param chain
  * @return uint
  */
-static inline uint swapchain_get_count(INMP441Swapchain *chain) {
-    return chain->count;
-}
+uint swapchain_get_count(Swapchain *chain) { return chain->count; }
 
 /**
  * @brief Borrow a Node for writing to it
@@ -75,9 +55,8 @@ static inline uint swapchain_get_count(INMP441Swapchain *chain) {
  * @param chain
  * @return Node*
  */
-static inline INMP441SwapchainNode *
-swapchain_borrow_for_write(INMP441Swapchain *chain) {
-    INMP441SwapchainNode *taken;
+SwapchainNode *swapchain_borrow_for_write(Swapchain *chain) {
+    SwapchainNode *taken;
 
     if ((taken = chain->cursor->next) == chain->cursor)
         return NULL;
@@ -97,10 +76,9 @@ swapchain_borrow_for_write(INMP441Swapchain *chain) {
  * @param chain
  * @param node
  */
-static inline void swapchain_return_after_write(INMP441Swapchain *chain,
-                                                INMP441SwapchainNode *node) {
-    INMP441SwapchainNode *prev = chain->cursor;
-    INMP441SwapchainNode *next = chain->cursor->next;
+void swapchain_return_after_write(Swapchain *chain, SwapchainNode *node) {
+    SwapchainNode *prev = chain->cursor;
+    SwapchainNode *next = chain->cursor->next;
 
     // Insert the node
     prev->next = node;
@@ -115,15 +93,14 @@ static inline void swapchain_return_after_write(INMP441Swapchain *chain,
 /**
  * @brief Borrow a Node for reading
  *
- *  Borrows the node at the cursor.
- *  Moves cursor to the next node.
+ * Borrows the node at the cursor.
+ * Moves cursor to the next node.
  *
  * @param chain
  * @return Node*
  */
-static inline INMP441SwapchainNode *
-swapchain_borrow_for_read(INMP441Swapchain *chain) {
-    INMP441SwapchainNode *taken;
+SwapchainNode *swapchain_borrow_for_read(Swapchain *chain) {
+    SwapchainNode *taken;
 
     if ((taken = chain->cursor) == chain->cursor->next)
         return NULL;
@@ -144,10 +121,9 @@ swapchain_borrow_for_read(INMP441Swapchain *chain) {
  * @param chain
  * @param node
  */
-static inline void swapchain_return_after_read(INMP441Swapchain *chain,
-                                               INMP441SwapchainNode *node) {
-    INMP441SwapchainNode *prev = chain->cursor;
-    INMP441SwapchainNode *next = chain->cursor->next;
+void swapchain_return_after_read(Swapchain *chain, SwapchainNode *node) {
+    SwapchainNode *prev = chain->cursor;
+    SwapchainNode *next = chain->cursor->next;
 
     prev->next = node;
     node->prev = prev;
@@ -156,20 +132,22 @@ static inline void swapchain_return_after_read(INMP441Swapchain *chain,
 }
 
 /**
- * @brief Destroy the chain. Renders the chain useless after this call. Any
+ * @brief Destroy the chain
+ *
+ * Renders the chain useless after this call. Any
  * further calls to swapchain_*() methods after this call is undefined
  * behaviour.
  *
  * @param chain Pointer to the chain
  */
-static void swapchain_deinit(INMP441Swapchain *chain) {
+void swapchain_deinit(Swapchain *chain) {
     uint i;
 
     if (!chain)
         return;
 
     for (i = 0; i < chain->count; i++) {
-        free(chain->cursor[i].p_buffer);
+        free(chain->cursor[i].buffer);
     }
 
     free(chain->cursor);
@@ -178,9 +156,9 @@ static void swapchain_deinit(INMP441Swapchain *chain) {
 /**
  * @brief Returns the raw pointer in memory for the audio buffer
  *
- * @param p_frame The pointer to the initialized audio frame in memory
+ * @param frame The pointer to the initialized audio frame in memory
  * @return uint32_t* The pointer to the start of the buffer
  */
-static inline uint32_t *swapchain_node_get_ptr(INMP441SwapchainNode *p_node) {
-    return p_node->p_buffer;
+uint32_t *swapchain_node_get_buffer_ptr(SwapchainNode *node) {
+    return node->buffer;
 }

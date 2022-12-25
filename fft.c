@@ -44,7 +44,7 @@ static inline uint reverse_bits(uint N, uint bit_depth) {
     return output;
 }
 
-inline void fill_reversed_indices(uint *reversed_indices, uint N) {
+void fill_reversed_indices(uint *reversed_indices, uint N) {
     uint bit_depth, i;
 
     // Number of bits required
@@ -54,7 +54,7 @@ inline void fill_reversed_indices(uint *reversed_indices, uint N) {
         reversed_indices[i] = reverse_bits(i, bit_depth);
 }
 
-inline void fill_twiddles(float complex *twiddles, uint N) {
+void fill_twiddles(float complex *twiddles, uint N) {
     float angle_per_sample;
     uint halfN, i;
 
@@ -71,7 +71,7 @@ inline void fill_twiddles(float complex *twiddles, uint N) {
         twiddles[i] = cexp(angle_per_sample * i * I);
 }
 
-inline void fill_twiddles_d(double complex *twiddles, uint N) {
+void fill_twiddles_d(double complex *twiddles, uint N) {
     double angle_per_sample;
     uint halfN, i;
 

@@ -15,34 +15,33 @@ add_compile_options(
     -Wno-maybe-uninitialized
 )
 
-# add_definitions(-DDOUBLE_PRECISION)
-
-add_subdirectory(status)
-add_subdirectory(canvas)
-add_subdirectory(ws2812_spi)
-add_subdirectory(ws2812_pio)
-add_subdirectory(inmp441_pio)
-add_subdirectory(fft)
-
 add_executable(LightPainting)
 
-# add_definitions(-DPROFILE)
+file(GLOB PIO_ASM_SRCS pio/*.pio)
+foreach(PIO_ASM_SRC ${PIO_ASM_SRCS})
+    pico_generate_pio_header(LightPainting
+        ${PIO_ASM_SRC} 
+        OUTPUT_DIR 
+            include/pio
+    )
+endforeach()
 
 target_sources(LightPainting
     PRIVATE
         program.c
-        rgb_status.c
-    INTERFACE
-        rgb_status.h
+        ws2812_pio.c
+        inmp441_pio.c
+        swapchain.c
+        fft.c
 )
+
+target_include_directories(LightPainting PUBLIC include)
 
 target_link_libraries(LightPainting
     pico_stdlib
-    ws2812_pio
-    inmp441_pio
-    canvas
-    status
-    fft
+    pico_mem_ops
+    hardware_pio
+    hardware_dma
 )
 
 pico_add_extra_outputs(LightPainting)
