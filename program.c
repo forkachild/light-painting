@@ -27,20 +27,25 @@
 
 int main() {
     Canvas canvas;
+    CanvasColor color = {.value = 0x000000FF};
+
     float complex *fft_samples = NULL;
     float complex *twiddles = NULL;
     uint *reversed_indices = NULL;
-    CanvasColor color = {.value = 0x000000FF};
     uint32_t saved_irq;
 
     stdio_init_all();
 
     // Providing an extra ground pin for the LEDs
     gpio_init(LED_GND);
-    gpio_set_dir(LED_GND, true);
-    gpio_put(LED_GND, false);
+    gpio_set_drive_strength(LED_GND, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_pulls(LED_GND, false, true);
 
-    inmp441_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN);
+    if (inmp441_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN) !=
+        RESULT_ALL_OK) {
+        printf("Audio init failed\n");
+        return EXIT_FAILURE;
+    }
 
     if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_ALL_OK) {
         printf("LED Driver init failed\n");
@@ -79,6 +84,8 @@ int main() {
     inmp441_start_sampling();
     ws2812_start_transmission();
 
+    uint8_t position = 0;
+
     for (;;) {
         saved_irq = save_and_disable_interrupts();
         node = swapchain_borrow_for_read(audio_swapchain);
@@ -95,16 +102,22 @@ int main() {
         swapchain_return_after_read(audio_swapchain, node);
         restore_interrupts(saved_irq);
 
-        fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
+        // fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
 
-        for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
-            float normalized_sample =
-                2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
+        // for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
+        //     float normalized_sample =
+        //         2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
 
-            color.channels.red = normalized_sample * 0xFF;
-            const uint start = i * 30;
-            canvas_line(&canvas, start, start + 30, color);
-        }
+        //     color.channels.red = normalized_sample * 0xFF;
+        //     const uint start = i * 30;
+        //     canvas_line(&canvas, start, start + 30, color);
+        // }
+
+        color.channels.red = position;
+        canvas_clear(&canvas, color);
+
+        if (++position >= 0xFF)
+            position = 0;
 
         saved_irq = save_and_disable_interrupts();
         node = swapchain_borrow_for_write(led_swapchain);

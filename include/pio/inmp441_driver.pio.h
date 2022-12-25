@@ -66,8 +66,8 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
     gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
     gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
     gpio_set_pulls(data_pin, false, true);
-    // gpio_set_input_hysteresis_enabled(data_pin, true);
-    // hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
+    gpio_set_input_hysteresis_enabled(data_pin, true);
+    hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }

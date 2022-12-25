@@ -13,23 +13,29 @@
 // ------ //
 
 #define ws2812_wrap_target 0
-#define ws2812_wrap 3
+#define ws2812_wrap 7
 
 #define ws2812_baud 10000000
 
+#define ws2812_offset_sync 1u
+
 static const uint16_t ws2812_program_instructions[] = {
             //     .wrap_target
-    0x6121, //  0: out    x, 1            side 0 [1] 
-    0x1023, //  1: jmp    !x, 3           side 1     
-    0x1000, //  2: jmp    0               side 1     
-    0xa042, //  3: nop                    side 0     
+    0x00e4, //  0: jmp    !osre, 4        side 0     
+    0xe03e, //  1: set    x, 30           side 0     
+    0xad42, //  2: nop                    side 0 [13]
+    0x0d42, //  3: jmp    x--, 2          side 0 [13]
+    0x6021, //  4: out    x, 1            side 0     
+    0x1027, //  5: jmp    !x, 7           side 1     
+    0x1000, //  6: jmp    0               side 1     
+    0xa042, //  7: nop                    side 0     
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program ws2812_program = {
     .instructions = ws2812_program_instructions,
-    .length = 4,
+    .length = 8,
     .origin = -1,
 };
 
@@ -41,7 +47,6 @@ static inline pio_sm_config ws2812_program_get_default_config(uint offset) {
 }
 
 #include "hardware/clocks.h"
-#include <stdio.h>
 static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
@@ -50,6 +55,8 @@ static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin) 
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
     sm_config_set_clkdiv(&c, 3.f * clock_get_hz(clk_sys) / ws2812_baud);
+    gpio_set_slew_rate(pin, GPIO_SLEW_RATE_FAST);
+    gpio_set_drive_strength(pin, GPIO_DRIVE_STRENGTH_12MA);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }

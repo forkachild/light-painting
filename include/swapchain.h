@@ -9,12 +9,12 @@ typedef struct Swapchain Swapchain;
 struct Swapchain {
     SwapchainNode *cursor;
     uint buffer_size;
-    uint count;
+    uint nodes;
 };
 
 struct SwapchainNode {
     uint index;
-    uint32_t *buffer;
+    void *buffer;
     SwapchainNode *next;
     SwapchainNode *prev;
 };
@@ -23,11 +23,11 @@ struct SwapchainNode {
  * @brief Initialize the chain before use. Must be called before calling any
  * other swapchain_*() methods
  *
- * @param chain
- * @param buffer_size
- * @param count
+ * @param chain Pointer to an initialized swapchain in memory
+ * @param buffer_size Size of buffer in each node (in bytes)
+ * @param nodes Number of swappable nodes
  */
-void swapchain_init(Swapchain *chain, uint buffer_size, uint count);
+void swapchain_init(Swapchain *chain, uint buffer_size, uint nodes);
 
 /**
  * @brief Get the size of each buffer contained inside each node
@@ -43,7 +43,7 @@ uint swapchain_get_buffer_size(Swapchain *chain);
  * @param chain
  * @return uint
  */
-uint swapchain_get_count(Swapchain *chain);
+uint swapchain_get_nodes(Swapchain *chain);
 
 /**
  * @brief Borrow a Node for writing to it

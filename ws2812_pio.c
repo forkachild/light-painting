@@ -2,7 +2,7 @@
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
-#include "pio/ws2812_driver_alt.pio.h"
+#include "pio/ws2812_driver.pio.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -30,14 +30,23 @@ typedef struct {
 
     // Whether the driver is initialized
     bool is_init;
+
+    // Whether the driver is transmitting
+    bool is_transmitting;
 } WS2812PIODriver;
 
-static WS2812PIODriver driver = {.is_init = false};
+static WS2812PIODriver driver = {
+    .read_node = NULL,
+    .is_init = false,
+    .is_transmitting = false,
+};
 
 static void dma_irq_handler() {
     swapchain_return_after_read(&driver.swapchain, driver.read_node);
     driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
     dma_channel_acknowledge_irq1(driver.dma_channel);
+    pio_sm_exec(driver.pio, driver.pio_sm,
+                pio_encode_jmp(driver.pio_offset + ws2812_offset_sync));
     dma_channel_set_read_addr(driver.dma_channel,
                               swapchain_node_get_buffer_ptr(driver.read_node),
                               true);
@@ -92,14 +101,17 @@ Result ws2812_init(uint count, uint pin) {
     channel_config_set_write_increment(&dma_config, false);
     channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
     channel_config_set_dreq(&dma_config, pio_get_dreq(pio, pio_sm, true));
+    channel_config_set_irq_quiet(&dma_config, false);
     dma_channel_configure(dma_channel, &dma_config, &pio->txf[pio_sm], NULL,
                           count, false);
+
+    dma_channel_set_irq1_enabled(dma_channel, true);
     irq_set_exclusive_handler(DMA_IRQ_1, dma_irq_handler);
     irq_set_enabled(DMA_IRQ_1, true);
 
-    swapchain_init(&driver.swapchain, count, 3);
+    swapchain_init(&driver.swapchain, count * sizeof(uint32_t), 3);
 
-    driver.dma_channel = dma_channel;
+    driver.dma_channel = (uint)dma_channel;
     driver.is_init = true;
 
     return RESULT_ALL_OK;
@@ -107,26 +119,29 @@ Result ws2812_init(uint count, uint pin) {
 
 bool ws2812_is_init() { return driver.is_init; }
 
-int ws2812_get_count() {
-    if (!driver.is_init)
-        return -1;
-
-    return driver.count;
-}
-
 void ws2812_start_transmission() {
-    dma_channel_set_irq1_enabled(driver.dma_channel, true);
+    if (driver.is_transmitting)
+        return;
+
     driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
     dma_channel_set_read_addr(driver.dma_channel,
                               swapchain_node_get_buffer_ptr(driver.read_node),
                               true);
+
+    driver.is_transmitting = true;
 }
 
 void ws2812_stop_transmission() {
+    if (!driver.is_transmitting)
+        return;
+
     dma_channel_set_irq1_enabled(driver.dma_channel, false);
     dma_channel_abort(driver.dma_channel);
     dma_channel_acknowledge_irq1(driver.dma_channel);
+    dma_channel_set_irq1_enabled(driver.dma_channel, true);
     swapchain_return_after_read(&driver.swapchain, driver.read_node);
+
+    driver.is_transmitting = false;
 }
 
 Swapchain *ws2812_get_swapchain() { return &driver.swapchain; }

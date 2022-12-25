@@ -3,26 +3,27 @@
 #include <stdlib.h>
 
 /**
- * @brief Initialize the chain before use. Must be called before calling any
- * other swapchain_*() methods
+ * @brief Initialize the chain before use
  *
- * @param chain
- * @param buffer_size
- * @param count
+ * Must be called before calling any other swapchain_*()` methods.
+ *
+ * @param chain Pointer to an initialized swapchain in memory
+ * @param buffer_size Size of buffer in each node
+ * @param nodes Number of swappable nodes
  */
-void swapchain_init(Swapchain *chain, uint buffer_size, uint count) {
+void swapchain_init(Swapchain *chain, uint buffer_size, uint nodes) {
     uint i;
     SwapchainNode *current, *next;
 
-    chain->cursor = (SwapchainNode *)malloc(count * sizeof(SwapchainNode));
+    chain->cursor = (SwapchainNode *)malloc(nodes * sizeof(SwapchainNode));
     chain->buffer_size = buffer_size;
-    chain->count = count;
+    chain->nodes = nodes;
 
-    for (i = 0; i < count; i++) {
+    for (i = 0; i < nodes; i++) {
         current = &chain->cursor[i];
-        next = &chain->cursor[(i + 1) % count];
+        next = &chain->cursor[(i + 1) % nodes];
         current->index = i + 1;
-        current->buffer = (uint32_t *)malloc(buffer_size * sizeof(uint32_t));
+        current->buffer = malloc(buffer_size);
         current->next = next;
         next->prev = current;
     }
@@ -42,7 +43,7 @@ uint swapchain_get_buffer_size(Swapchain *chain) { return chain->buffer_size; }
  * @param chain
  * @return uint
  */
-uint swapchain_get_count(Swapchain *chain) { return chain->count; }
+uint swapchain_get_nodes(Swapchain *chain) { return chain->nodes; }
 
 /**
  * @brief Borrow a Node for writing to it
@@ -144,7 +145,7 @@ void swapchain_deinit(Swapchain *chain) {
     if (!chain)
         return;
 
-    for (i = 0; i < chain->count; i++) {
+    for (i = 0; i < chain->nodes; i++) {
         free(chain->cursor[i].buffer);
     }
 

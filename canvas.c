@@ -11,15 +11,14 @@ Result canvas_init(Canvas *canvas, uint count) {
     canvas->count = count;
     canvas->buffer = (uint32_t *)malloc(count * sizeof(uint32_t));
 
+    if (!canvas->buffer)
+        return RESULT_MEM_ERR;
+
     return RESULT_ALL_OK;
 }
 
 void canvas_clear(Canvas *canvas, CanvasColor color) {
-    uint i;
-
-    for (i = 0; i < canvas->count; i++) {
-        canvas->buffer[i] = color.value;
-    }
+    memset(canvas->buffer, color.value, canvas->count);
 }
 
 void canvas_point(Canvas *canvas, uint pos, CanvasColor color) {
@@ -30,15 +29,13 @@ void canvas_point(Canvas *canvas, uint pos, CanvasColor color) {
 }
 
 void canvas_line(Canvas *canvas, uint start, uint end, CanvasColor color) {
-    if (end > canvas->count) {
+    if (end > canvas->count)
         end = canvas->count;
-    }
 
     if (start >= end)
         return;
 
-    for (int i = start; i < end; i++)
-        canvas->buffer[i] = color.value;
+    memset(&canvas->buffer[start], color.value, end - start);
 }
 
 void canvas_line_gradient(Canvas *canvas, uint start, uint end,

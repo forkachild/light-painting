@@ -34,6 +34,7 @@ target_sources(LightPainting
         swapchain.c
         canvas.c
         fft.c
+        status.c
 )
 
 target_include_directories(LightPainting PUBLIC include)
