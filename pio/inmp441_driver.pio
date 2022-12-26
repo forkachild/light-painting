@@ -6,9 +6,9 @@
 .program INMP441
 .side_set 2
 
-.define DIN_CYCLES      24
-.define PAD_CYCLES      5
-.define SKIP_CYCLES     30
+.define DIN_CYCLES      (25 - 1)
+.define PAD_CYCLES      (6 - 1)
+.define SKIP_CYCLES     (31 - 1)
 
 .define public REQUIRED_CLOCK   6144000
 

@@ -13,7 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define AUDIO_SAMPLES 64
+#define AUDIO_SAMPLES 32
 #define LED_COUNT 300
 
 #define SCK_PIN 3
@@ -21,7 +21,6 @@
 #define LR_PIN 5
 #define DATA_PIN 6
 #define LED_PIN 11
-#define LED_GND 12
 
 #define AUDIO_INPUT_MAX_AMP ((1U << 24) - 1)
 
@@ -35,11 +34,6 @@ int main() {
     uint32_t saved_irq;
 
     stdio_init_all();
-
-    // Providing an extra ground pin for the LEDs
-    gpio_init(LED_GND);
-    gpio_set_drive_strength(LED_GND, GPIO_DRIVE_STRENGTH_12MA);
-    gpio_set_pulls(LED_GND, false, true);
 
     if (inmp441_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN, LR_PIN) !=
         RESULT_ALL_OK) {
@@ -85,6 +79,12 @@ int main() {
     ws2812_start_transmission();
 
     uint8_t position = 0;
+    const float sample_per_led = (float)AUDIO_SAMPLES / (2 * LED_COUNT);
+
+#ifdef PROFILE_FPS
+    uint frames = 0;
+    absolute_time_t last_frame_time = get_absolute_time();
+#endif
 
     for (;;) {
         saved_irq = save_and_disable_interrupts();
@@ -102,22 +102,38 @@ int main() {
         swapchain_return_after_read(audio_swapchain, node);
         restore_interrupts(saved_irq);
 
+        // for (uint i = 0; i < AUDIO_SAMPLES; i++)
+        //     printf("%.2f  ", creal(fft_samples[i]));
+        // printf("\n");
+
         // fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
 
-        // for (uint i = 1; i < (AUDIO_SAMPLES / 2) - 1; i++) {
+        // for (uint i = 1; i < LED_COUNT; i++) {
+        //     uint fft_index = (uint)(sample_per_led * i);
+
         //     float normalized_sample =
-        //         2 * cabs(fft_samples[reversed_indices[i]]) / AUDIO_SAMPLES;
+        //         2 * cabs(fft_samples[reversed_indices[fft_index]]) /
+        //         AUDIO_SAMPLES;
 
         //     color.channels.red = normalized_sample * 0xFF;
-        //     const uint start = i * 30;
-        //     canvas_line(&canvas, start, start + 30, color);
+        //     canvas_point(&canvas, i, color);
         // }
 
-        color.channels.red = position;
+        color.channels.green = position;
         canvas_clear(&canvas, color);
 
         if (++position >= 0xFF)
             position = 0;
+
+#ifdef PROFILE_FPS
+        frames++;
+        absolute_time_t time_now = get_absolute_time();
+        if (absolute_time_diff_us(last_frame_time, time_now) > 1000000L) {
+            printf("%d fps\n", frames);
+            frames = 0;
+            last_frame_time = time_now;
+        }
+#endif
 
         saved_irq = save_and_disable_interrupts();
         node = swapchain_borrow_for_write(led_swapchain);

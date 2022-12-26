@@ -26,6 +26,8 @@ foreach(PIO_ASM_SRC ${PIO_ASM_SRCS})
     )
 endforeach()
 
+# add_definitions(-DPROFILE_FPS)
+
 target_sources(LightPainting
     PRIVATE
         program.c
