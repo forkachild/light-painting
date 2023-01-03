@@ -3,8 +3,7 @@
 #include "pico/types.h"
 #include "swapchain.h"
 
-Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
-                    uint lr_config_pin);
+Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin);
 
 void inmp441_start_sampling();
 

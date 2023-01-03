@@ -106,4 +106,4 @@ void swapchain_deinit(Swapchain *chain);
  * @param frame The pointer to the initialized audio frame in memory
  * @return uint32_t* The pointer to the start of the buffer
  */
-uint32_t *swapchain_node_get_buffer_ptr(SwapchainNode *node);
+void *swapchain_node_get_buffer_ptr(SwapchainNode *node);

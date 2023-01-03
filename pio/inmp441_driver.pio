@@ -3,44 +3,44 @@
 ;
 ; I love PIO
 
-.program INMP441
+.program inmp441
 .side_set 2
 
-.define DIN_CYCLES      (25 - 1)
-.define PAD_CYCLES      (6 - 1)
-.define SKIP_CYCLES     (31 - 1)
+.define din_cycles      (25 - 1)
+.define pad_cycles      (6 - 1)
+.define skip_cycles     (31 - 1)
 
-.define public REQUIRED_CLOCK   6144000
+.define public required_clock   6144000
 
 ; First two bits are dummy(=0) + 24 bits
-.define public BITS_IN_PER_WORD    26
+.define public bits_in_per_word    26
 
 ;                           WS    SCK
 ;                             \  /
-L0:;                           ||
-    IN NULL, 1          side 0b11   ; (SAMPLE NULL BIT) Block on ISR until 
+dummy:;                         ||
+    in null, 1          side 0b11   ; (SAMPLE NULL BIT) Block on ISR until 
 ;                              ||   ; RX FIFO accomodates space
-; Skip loop end                ||
-; Data loop start              ||
-L1:;                           ||
-    SET X, DIN_CYCLES   side 0b00   ; We begin with the left channel
-L2:;                           ||
-    IN PINS, 1          side 0b01   ; (SAMPLE BITS 0 to 24 LEFT) Sample a data bit on rising-edge
-    JMP X--, L2         side 0b00   ; Loop until x == 1 (25 times)
-; Data loop end                ||
-; Pad loop start               ||
-L3:;                           ||
-    SET X, PAD_CYCLES   side 0b01   ; (PAD BIT 25 LEFT) Another cycle
-L4:;                           ||
-    NOP                 side 0b00   ; Skip bit loop
-    JMP X--, L4         side 0b01   ; (PAD BITS 26 to 31 LEFT) Loop until x == 1 (6 times)
-; Pad loop end                 ||
-; Skip loop start              ||
-L5:;                           ||
-    SET X, SKIP_CYCLES  side 0b10   ; Move to right channel, which we will entirely skip
-L6:;                           ||
-    NOP                 side 0b11   ; (SKIP BITS 0 to 30 RIGHT)
-    JMP X--, L6         side 0b10   
+; skip loop end                ||
+; data loop start              ||
+left:;                         ||
+    set x, din_cycles   side 0b00   ; We begin with the left channel
+left_loop:;                    ||
+    in pins, 1          side 0b01   ; (SAMPLE BITS 0 to 24 LEFT) Sample a data bit on rising-edge
+    jmp x--, left_loop  side 0b00   ; Loop until x == 1 (25 times)
+; data loop end                ||
+; pad loop start               ||
+l3:;                           ||
+    set x, pad_cycles   side 0b01   ; (PAD BIT 25 LEFT) Another cycle
+l4:;                           ||
+    nop                 side 0b00   ; Skip bit loop
+    jmp x--, l4         side 0b01   ; (PAD BITS 26 to 31 LEFT) Loop until x == 1 (6 times)
+; pad loop end                 ||
+; skip loop start              ||
+l5:;                           ||
+    set x, skip_cycles  side 0b10   ; Move to right channel, which we will entirely skip
+l6:;                           ||
+    nop                 side 0b11   ; (SKIP BITS 0 to 30 RIGHT)
+    jmp x--, l6         side 0b10   
 ;                              ||
 ;                             /  \
 ;                           WS    SCK
@@ -49,7 +49,7 @@ L6:;                           ||
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
 
-static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
+static inline void inmp441_program_init(PIO pio, uint sm, uint offset,
                                             uint sck_pin, uint ws_pin,
                                             uint data_pin) {
     pio_sm_set_pindirs_with_mask(
@@ -58,12 +58,12 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
     pio_gpio_init(pio, sck_pin);
     pio_gpio_init(pio, ws_pin);
 
-    pio_sm_config c = INMP441_program_get_default_config(offset);
+    pio_sm_config c = inmp441_program_get_default_config(offset);
     
-    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / INMP441_REQUIRED_CLOCK);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / inmp441_required_clock);
     sm_config_set_in_pins(&c, data_pin);
     sm_config_set_sideset_pins(&c, sck_pin);
-    sm_config_set_in_shift(&c, false, true, INMP441_BITS_IN_PER_WORD);
+    sm_config_set_in_shift(&c, false, true, inmp441_bits_in_per_word);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
     gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
@@ -76,7 +76,7 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
     pio_sm_set_enabled(pio, sm, true);
 }
 
-static inline void INMP441_program_deinit(PIO pio, uint sm) {
+static inline void inmp441_program_deinit(PIO pio, uint sm) {
     pio_sm_set_enabled(pio, sm, false);
     pio_sm_unclaim(pio, sm);
 }

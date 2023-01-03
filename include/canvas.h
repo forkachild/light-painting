@@ -7,7 +7,7 @@
 #include <memory.h>
 #include <stdlib.h>
 
-#define RGB2CanvasColor(r, g, b)                                               \
+#define RGB2GRBAColor(r, g, b)                                                 \
     GRBAColor {                                                                \
         .channels = {                                                          \
             .red = r,                                                          \
@@ -17,9 +17,10 @@
     }
 
 typedef struct Canvas Canvas;
-typedef union CanvasColor CanvasColor;
+typedef union GRBAColor GRBAColor;
+typedef struct HSVColor HSVColor;
 
-union CanvasColor {
+union GRBAColor {
     struct {
         uint8_t alpha;
         uint8_t blue;
@@ -29,18 +30,23 @@ union CanvasColor {
     uint32_t value;
 };
 
+struct HSVColor {
+    float hue;
+    float sat;
+    float val;
+};
+
 struct Canvas {
     uint count;
     uint32_t *buffer;
 };
 
 Result canvas_init(Canvas *canvas, uint count);
-void canvas_clear(Canvas *canvas, CanvasColor color);
-void canvas_point(Canvas *canvas, uint pos, CanvasColor color);
-void canvas_line(Canvas *canvas, uint start, uint end, CanvasColor color);
+void canvas_clear(Canvas *canvas, GRBAColor color);
+void canvas_point(Canvas *canvas, uint pos, GRBAColor color);
+void canvas_line(Canvas *canvas, uint start, uint end, GRBAColor color);
 void canvas_line_gradient(Canvas *canvas, uint start, uint end,
-                          const CanvasColor *color_array, uint color_count);
+                          const GRBAColor *color_array, uint color_count);
 void canvas_line_rainbow(Canvas *canvas, uint start, uint end, float phase);
 uint32_t *canvas_get_grba_buffer(Canvas *canvas);
 Result canvas_deinit(Canvas *canvas);
-CanvasColor hsv_to_color(float hue, float saturation, float value);

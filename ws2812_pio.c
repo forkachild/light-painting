@@ -3,6 +3,7 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "pio/ws2812_driver.pio.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -41,12 +42,24 @@ static WS2812PIODriver driver = {
     .is_transmitting = false,
 };
 
+static uint frames = 0;
+static absolute_time_t last_frame_time = {0};
+
 static void dma_irq_handler() {
     swapchain_return_after_read(&driver.swapchain, driver.read_node);
     driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     pio_sm_exec(driver.pio, driver.pio_sm,
                 pio_encode_jmp(driver.pio_offset + ws2812_offset_sync));
+
+    frames++;
+    absolute_time_t time_now = get_absolute_time();
+    if (to_ms_since_boot(time_now) - to_ms_since_boot(last_frame_time) > 1000) {
+        printf("FPS %d\n", frames);
+        last_frame_time = time_now;
+        frames = 0;
+    }
+
     dma_channel_set_read_addr(driver.dma_channel,
                               swapchain_node_get_buffer_ptr(driver.read_node),
                               true);
@@ -79,21 +92,13 @@ Result ws2812_init(uint count, uint pin) {
         return RESULT_PIO_ERR;
 
     if ((dma_channel = dma_claim_unused_channel(false)) == -1) {
-        // Give up the sm claimed before returning
         pio_sm_unclaim(pio, pio_sm);
-
-        // Guard if not
         return RESULT_DMA_ERR;
     }
 
     // Load the PIO program in memory and initialize it
     pio_offset = pio_add_program(pio, &ws2812_program);
     ws2812_program_init(pio, pio_sm, pio_offset, pin);
-
-    driver.pio = pio;
-    driver.pio_sm = (uint)pio_sm;
-    driver.pio_offset = pio_offset;
-    driver.count = count;
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
@@ -111,6 +116,10 @@ Result ws2812_init(uint count, uint pin) {
 
     swapchain_init(&driver.swapchain, count * sizeof(uint32_t), 3);
 
+    driver.pio = pio;
+    driver.pio_sm = (uint)pio_sm;
+    driver.pio_offset = pio_offset;
+    driver.count = count;
     driver.dma_channel = (uint)dma_channel;
     driver.is_init = true;
 

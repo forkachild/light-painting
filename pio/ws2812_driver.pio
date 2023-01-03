@@ -8,24 +8,20 @@
 
 .define public baud 10000000
 
-.wrap_target
 ; Check whether the OSR is empty
 ; If yes, so no more data, continue to transmit a 50us LO sync pulse
 ; If not, jump to transmitting one bit
-check_osr:
-    jmp !osre, tx_bit   side 0          ; 0.3us If we have stuff to transmit, go ahead!
+transmit:
+    out x, 1            side 0          ; 0.6us
+    jmp !x, do_zero     side 1          ; 0.3us
+do_one:
+    jmp transmit        side 1          ; 0.3us
+do_zero:
+    jmp transmit        side 0          ; 0.3us
 public sync:
-    set x, (14 - 1)     side 0          ; 0.3us Or else let's start the end of transmission! 50us line lo
+    set x, (14 - 1)     side 0          ; 0.3us End of transmission
 sync_loop:
     jmp x--, sync_loop  side 0 [15 - 1] ; 4.2us (0.3us * 14 * 15 = 63us > 50us) Safe SYNC
-tx_bit:
-    out x, 1            side 0          ; 0.3us
-    jmp !x, tx_zero     side 1          ; 0.3us
-tx_one:
-    jmp check_osr       side 1          ; 0.3us
-tx_zero:
-    nop                 side 0          ; 0.3us
-.wrap
 
 % c-sdk {
 #include "hardware/clocks.h"

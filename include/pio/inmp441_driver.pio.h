@@ -9,16 +9,16 @@
 #endif
 
 // ------- //
-// INMP441 //
+// inmp441 //
 // ------- //
 
-#define INMP441_wrap_target 0
-#define INMP441_wrap 9
+#define inmp441_wrap_target 0
+#define inmp441_wrap 9
 
-#define INMP441_REQUIRED_CLOCK 6144000
-#define INMP441_BITS_IN_PER_WORD 26
+#define inmp441_required_clock 6144000
+#define inmp441_bits_in_per_word 26
 
-static const uint16_t INMP441_program_instructions[] = {
+static const uint16_t inmp441_program_instructions[] = {
             //     .wrap_target
     0x5861, //  0: in     null, 1         side 3     
     0xe038, //  1: set    x, 24           side 0     
@@ -34,22 +34,22 @@ static const uint16_t INMP441_program_instructions[] = {
 };
 
 #if !PICO_NO_HARDWARE
-static const struct pio_program INMP441_program = {
-    .instructions = INMP441_program_instructions,
+static const struct pio_program inmp441_program = {
+    .instructions = inmp441_program_instructions,
     .length = 10,
     .origin = -1,
 };
 
-static inline pio_sm_config INMP441_program_get_default_config(uint offset) {
+static inline pio_sm_config inmp441_program_get_default_config(uint offset) {
     pio_sm_config c = pio_get_default_sm_config();
-    sm_config_set_wrap(&c, offset + INMP441_wrap_target, offset + INMP441_wrap);
+    sm_config_set_wrap(&c, offset + inmp441_wrap_target, offset + inmp441_wrap);
     sm_config_set_sideset(&c, 2, false, false);
     return c;
 }
 
 #include "hardware/clocks.h"
 #include "hardware/gpio.h"
-static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
+static inline void inmp441_program_init(PIO pio, uint sm, uint offset,
                                             uint sck_pin, uint ws_pin,
                                             uint data_pin) {
     pio_sm_set_pindirs_with_mask(
@@ -57,11 +57,11 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
         (1u << sck_pin) | (1u << ws_pin) | (1u << data_pin));
     pio_gpio_init(pio, sck_pin);
     pio_gpio_init(pio, ws_pin);
-    pio_sm_config c = INMP441_program_get_default_config(offset);
-    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / INMP441_REQUIRED_CLOCK);
+    pio_sm_config c = inmp441_program_get_default_config(offset);
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / inmp441_required_clock);
     sm_config_set_in_pins(&c, data_pin);
     sm_config_set_sideset_pins(&c, sck_pin);
-    sm_config_set_in_shift(&c, false, true, INMP441_BITS_IN_PER_WORD);
+    sm_config_set_in_shift(&c, false, true, inmp441_bits_in_per_word);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
     gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
@@ -71,7 +71,7 @@ static inline void INMP441_program_init(PIO pio, uint sm, uint offset,
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }
-static inline void INMP441_program_deinit(PIO pio, uint sm) {
+static inline void inmp441_program_deinit(PIO pio, uint sm) {
     pio_sm_set_enabled(pio, sm, false);
     pio_sm_unclaim(pio, sm);
 }

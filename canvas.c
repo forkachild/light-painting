@@ -7,6 +7,71 @@
 #include <memory.h>
 #include <stdlib.h>
 
+static GRBAColor hsv_to_grba(float hue, float sat, float val) {
+    float hh, p, q, t, ff, r, g, b;
+    int i;
+    GRBAColor out;
+
+    if (sat <= 0.f) { // < is bogus, just shuts up warnings
+        r = val;
+        g = val;
+        b = val;
+    } else {
+        hh = hue;
+        if (hh >= 360.f)
+            hh = 0.f;
+        hh /= 60.f;
+
+        i = (int)hh;
+        ff = hh - i;
+
+        p = val * (1.f - sat);
+        q = val * (1.f - (sat * ff));
+        t = val * (1.f - (sat * (1.f - ff)));
+
+        switch (i) {
+        case 0:
+            r = val;
+            g = t;
+            b = p;
+            break;
+        case 1:
+            r = q;
+            g = val;
+            b = p;
+            break;
+        case 2:
+            r = p;
+            g = val;
+            b = t;
+            break;
+
+        case 3:
+            r = p;
+            g = q;
+            b = val;
+            break;
+        case 4:
+            r = t;
+            g = p;
+            b = val;
+            break;
+        case 5:
+        default:
+            r = val;
+            g = p;
+            b = q;
+            break;
+        }
+    }
+
+    out.channels.red = (uint8_t)(r * 255);
+    out.channels.green = (uint8_t)(g * 255);
+    out.channels.blue = (uint8_t)(b * 255);
+
+    return out;
+}
+
 Result canvas_init(Canvas *canvas, uint count) {
     canvas->count = count;
     canvas->buffer = (uint32_t *)malloc(count * sizeof(uint32_t));
@@ -17,21 +82,21 @@ Result canvas_init(Canvas *canvas, uint count) {
     return RESULT_ALL_OK;
 }
 
-void canvas_clear(Canvas *canvas, CanvasColor color) {
+void canvas_clear(Canvas *canvas, GRBAColor color) {
     uint i;
 
     for (i = 0; i < canvas->count; i++)
         canvas->buffer[i] = color.value;
 }
 
-void canvas_point(Canvas *canvas, uint pos, CanvasColor color) {
+void canvas_point(Canvas *canvas, uint pos, GRBAColor color) {
     if (pos >= canvas->count)
         return;
 
     canvas->buffer[pos] = color.value;
 }
 
-void canvas_line(Canvas *canvas, uint start, uint end, CanvasColor color) {
+void canvas_line(Canvas *canvas, uint start, uint end, GRBAColor color) {
     if (end > canvas->count)
         end = canvas->count;
 
@@ -43,10 +108,10 @@ void canvas_line(Canvas *canvas, uint start, uint end, CanvasColor color) {
 }
 
 void canvas_line_gradient(Canvas *canvas, uint start, uint end,
-                          const CanvasColor *color_array, uint color_count) {
+                          const GRBAColor *color_array, uint color_count) {
     uint i, index, next_index;
-    CanvasColor color;
-    float progress, fraction;
+    GRBAColor color;
+    float progress, f;
 
     if (end > canvas->count)
         end = canvas->count;
@@ -59,17 +124,17 @@ void canvas_line_gradient(Canvas *canvas, uint start, uint end,
         index = (uint)progress;
         next_index = (index + 1) % color_count;
 
-        fraction = progress - index;
+        f = progress - index;
 
         color.channels.red =
-            (uint8_t)(color_array[index].channels.red * (1.f - fraction)) +
-            (uint8_t)(color_array[next_index].channels.red * fraction);
+            (uint8_t)(color_array[index].channels.red * (1.f - f)) +
+            (uint8_t)(color_array[next_index].channels.red * f);
         color.channels.green =
-            (uint8_t)(color_array[index].channels.green * (1.f - fraction)) +
-            (uint8_t)(color_array[next_index].channels.green * fraction);
+            (uint8_t)(color_array[index].channels.green * (1.f - f)) +
+            (uint8_t)(color_array[next_index].channels.green * f);
         color.channels.blue =
-            (uint8_t)(color_array[index].channels.blue * (1.f - fraction)) +
-            (uint8_t)(color_array[next_index].channels.blue * fraction);
+            (uint8_t)(color_array[index].channels.blue * (1.f - f)) +
+            (uint8_t)(color_array[next_index].channels.blue * f);
 
         canvas->buffer[i] = color.value;
     }
@@ -90,7 +155,7 @@ void canvas_line_rainbow(Canvas *canvas, uint start, uint end, float phase) {
         degrees = degree_delta * i;
         degrees = degrees + phase;
         degrees = fmodf(degrees, 360.f);
-        canvas->buffer[i] = hsv_to_color(degrees, 1.0f, 1.0f).value;
+        canvas->buffer[i] = hsv_to_grba(degrees, 1.0f, 1.0f).value;
     }
 }
 
@@ -99,32 +164,4 @@ uint32_t *canvas_get_grba_buffer(Canvas *canvas) { return canvas->buffer; }
 Result canvas_deinit(Canvas *canvas) {
     free(canvas->buffer);
     return RESULT_ALL_OK;
-}
-
-CanvasColor hsv_to_color(float hue, float saturation, float value) {
-    float C = saturation * value;
-    float X = C * (1 - abs(fmodf(hue / 60.0, 2) - 1));
-    float m = value - C;
-    float r, g, b;
-    CanvasColor color;
-
-    if (hue >= 0 && hue < 60) {
-        r = C, g = X, b = 0;
-    } else if (hue >= 60 && hue < 120) {
-        r = X, g = C, b = 0;
-    } else if (hue >= 120 && hue < 180) {
-        r = 0, g = C, b = X;
-    } else if (hue >= 180 && hue < 240) {
-        r = 0, g = X, b = C;
-    } else if (hue >= 240 && hue < 300) {
-        r = X, g = 0, b = C;
-    } else {
-        r = C, g = 0, b = X;
-    }
-
-    color.channels.red = (r + m) * 255;
-    color.channels.green = (g + m) * 255;
-    color.channels.blue = (b + m) * 255;
-
-    return color;
 }

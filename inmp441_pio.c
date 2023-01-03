@@ -7,23 +7,44 @@
 #include "pico/sync.h"
 #include "pio/inmp441_driver.pio.h"
 #include "swapchain.h"
+#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 #define SWAPCHAIN_LENGTH 3
 
 typedef struct {
+    // Selected PIO bank
     PIO pio;
+
+    // Selected State Machine in the PIO bank
     uint pio_sm;
+
+    // Offset inside PIO instruction bank
     uint pio_offset;
+
+    // DMA channel used to burst buffers to PIO
     uint dma_channel;
+
+    // GPIO connected to the SCK(Serial ClocK) pin
     uint sck_pin;
+
+    // GPIO connected to the WS(Word Select) pin
     uint ws_pin;
+
+    // GPIO connected to the SD(Serial Data) pin
     uint data_pin;
-    uint lr_config_pin;
+
+    // Swapchain used to circle the buffers
     Swapchain swapchain;
+
+    // Written node cached
     SwapchainNode *write_node;
+
+    // Whether the driver is initialized
     bool is_init;
+
+    // Whether transmission is ongoing
     bool is_transmitting;
 } INMP441PIODriver;
 
@@ -42,8 +63,7 @@ static void dma_irq_handler() {
                                true);
 }
 
-Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
-                    uint lr_config_pin) {
+Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -53,26 +73,18 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
     if (driver.is_init)
         return RESULT_ALREADY_INIT;
 
+    // SCK, WS & Data must be
     if (sck_pin >= NUM_BANK0_GPIOS || ws_pin >= NUM_BANK0_GPIOS ||
-        data_pin >= NUM_BANK0_GPIOS || lr_config_pin >= NUM_BANK0_GPIOS)
+        data_pin >= NUM_BANK0_GPIOS)
         return RESULT_ARG_ERR;
 
+    // SCK and WS **MUST** be consecutive pins
     if (sck_pin + 1 != ws_pin)
         return RESULT_ARG_ERR;
 
     // Start with first PIO
-    pio = pio0;
-
-    // Check if the program can be loaded in the pio
-    if (!pio_can_add_program(pio, &INMP441_program)) {
-        // Try the other, PIO1
-        pio = pio1;
-
-        // Check again
-        if (!pio_can_add_program(pio, &INMP441_program))
-            // Guard if not
-            return RESULT_PIO_ERR;
-    }
+    if (!(pio = pio_find(&inmp441_program)))
+        return RESULT_PIO_ERR;
 
     // Try to grab an unused State Machine
     if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
@@ -87,14 +99,9 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
         return RESULT_DMA_ERR;
     }
 
-    // Set LR selection to LOW to get words in L
-    gpio_init(lr_config_pin);
-    gpio_set_dir(lr_config_pin, true);
-    gpio_put(lr_config_pin, false);
-
     // Load the PIO program in memory and initialize it
-    pio_offset = pio_add_program(pio, &INMP441_program);
-    INMP441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
+    pio_offset = pio_add_program(pio, &inmp441_program);
+    inmp441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
 
     swapchain_init(&swapchain, samples * sizeof(uint32_t), SWAPCHAIN_LENGTH);
 
@@ -121,7 +128,6 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin,
     driver.sck_pin = sck_pin;
     driver.ws_pin = ws_pin;
     driver.data_pin = data_pin;
-    driver.lr_config_pin = lr_config_pin;
     driver.swapchain = swapchain;
     driver.is_init = true;
 
@@ -162,11 +168,9 @@ Result inmp441_deinit() {
     inmp441_stop_sampling();
     swapchain_deinit(&driver.swapchain);
 
-    INMP441_program_deinit(driver.pio, driver.pio_sm);
+    inmp441_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
-    pio_remove_program(driver.pio, &INMP441_program, driver.pio_offset);
-
-    gpio_deinit(driver.lr_config_pin);
+    pio_remove_program(driver.pio, &inmp441_program, driver.pio_offset);
 
     return RESULT_ALL_OK;
 }
