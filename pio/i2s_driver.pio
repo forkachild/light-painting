@@ -1,0 +1,59 @@
+; High optimized PIO program to receive audio samples from I2S only from left channel.
+; Shifts two 0 bits followed by 24-bits of sample and skips the right channel.
+;
+; I love PIO!!!
+
+.program inmp441
+.side_set 2
+
+.define public required_clock   6144000
+.define public bits_in_per_word    32
+
+    set x, 30        side 0b00
+left:
+    in pins, 1       side 0b01
+    jmp x--, left    side 0b00
+    in pins, 1       side 0b11 ; Last bit of left has WCLK change per I2S spec
+
+    set x, 30        side 0b10
+right:
+    nop              side 0b11
+    jmp x--, right   side 0b10
+    nop              side 0b01 ; Last bit of right also has WCLK change
+
+% c-sdk {
+#include "hardware/clocks.h"
+#include "hardware/gpio.h"
+
+static inline void inmp441_program_init(PIO pio, uint sm, uint offset,
+                                            uint sck_pin, uint ws_pin,
+                                            uint data_pin) {
+    pio_sm_set_pindirs_with_mask(
+        pio, sm, (1u << sck_pin) | (1u << ws_pin) | (0u << data_pin),
+        (1u << sck_pin) | (1u << ws_pin) | (1u << data_pin));
+    pio_gpio_init(pio, sck_pin);
+    pio_gpio_init(pio, ws_pin);
+
+    pio_sm_config c = inmp441_program_get_default_config(offset);
+    
+    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / inmp441_required_clock);
+    sm_config_set_in_pins(&c, data_pin);
+    sm_config_set_sideset_pins(&c, sck_pin);
+    sm_config_set_in_shift(&c, false, true, inmp441_bits_in_per_word);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+    gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
+    gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
+    gpio_set_pulls(data_pin, false, true);
+    hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+static inline void inmp441_program_deinit(PIO pio, uint sm) {
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_unclaim(pio, sm);
+}
+
+%}
