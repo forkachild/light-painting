@@ -5,7 +5,7 @@
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "pico/sync.h"
-#include "pio/inmp441_driver.pio.h"
+#include "pio/i2s_driver.pio.h"
 #include "swapchain.h"
 #include "utils.h"
 #include <stdio.h>
@@ -110,7 +110,7 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     channel_config_set_read_increment(&dma_config, false);
     channel_config_set_write_increment(&dma_config, true);
     channel_config_set_transfer_data_size(&dma_config, DMA_SIZE_32);
-    channel_config_set_bswap(&dma_config, true);
+    // channel_config_set_bswap(&dma_config, true);
     channel_config_set_dreq(&dma_config, pio_get_dreq(pio, pio_sm, false));
     channel_config_set_irq_quiet(&dma_config, false);
     dma_channel_configure(dma_channel, &dma_config, NULL, &pio->rxf[pio_sm],

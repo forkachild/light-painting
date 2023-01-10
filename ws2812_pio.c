@@ -55,7 +55,6 @@ static void dma_irq_handler() {
     frames++;
     absolute_time_t time_now = get_absolute_time();
     if (to_ms_since_boot(time_now) - to_ms_since_boot(last_frame_time) > 1000) {
-        printf("FPS %d\n", frames);
         last_frame_time = time_now;
         frames = 0;
     }

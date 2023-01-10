@@ -13,30 +13,28 @@
 // ------- //
 
 #define inmp441_wrap_target 0
-#define inmp441_wrap 9
+#define inmp441_wrap 7
 
 #define inmp441_required_clock 6144000
-#define inmp441_bits_in_per_word 26
+#define inmp441_bits_in_per_word 32
 
 static const uint16_t inmp441_program_instructions[] = {
             //     .wrap_target
-    0x5861, //  0: in     null, 1         side 3     
-    0xe038, //  1: set    x, 24           side 0     
-    0x4801, //  2: in     pins, 1         side 1     
-    0x0042, //  3: jmp    x--, 2          side 0     
-    0xe825, //  4: set    x, 5            side 1     
-    0xa042, //  5: nop                    side 0     
-    0x0845, //  6: jmp    x--, 5          side 1     
-    0xf03e, //  7: set    x, 30           side 2     
-    0xb842, //  8: nop                    side 3     
-    0x1048, //  9: jmp    x--, 8          side 2     
+    0xe03e, //  0: set    x, 30           side 0     
+    0x4801, //  1: in     pins, 1         side 1     
+    0x0041, //  2: jmp    x--, 1          side 0     
+    0x5801, //  3: in     pins, 1         side 3     
+    0xf03e, //  4: set    x, 30           side 2     
+    0xb842, //  5: nop                    side 3     
+    0x1045, //  6: jmp    x--, 5          side 2     
+    0xa842, //  7: nop                    side 1     
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program inmp441_program = {
     .instructions = inmp441_program_instructions,
-    .length = 10,
+    .length = 8,
     .origin = -1,
 };
 
@@ -66,7 +64,6 @@ static inline void inmp441_program_init(PIO pio, uint sm, uint offset,
     gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
     gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
     gpio_set_pulls(data_pin, false, true);
-    gpio_set_input_hysteresis_enabled(data_pin, true);
     hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);

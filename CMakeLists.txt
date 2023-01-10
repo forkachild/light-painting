@@ -19,11 +19,7 @@ add_executable(LightPainting)
 
 file(GLOB PIO_ASM_SRCS pio/*.pio)
 foreach(PIO_ASM_SRC ${PIO_ASM_SRCS})
-    pico_generate_pio_header(LightPainting
-        ${PIO_ASM_SRC} 
-        OUTPUT_DIR 
-            include/pio
-    )
+    pico_generate_pio_header(LightPainting ${PIO_ASM_SRC} OUTPUT_DIR include/pio)
 endforeach()
 
 # add_definitions(-DPROFILE_FPS)

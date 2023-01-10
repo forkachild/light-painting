@@ -20,6 +20,7 @@
 #define WS_PIN 11
 #define DATA_PIN 12
 #define LED_PIN 13
+#define LR_PIN 14
 
 #define AUDIO_INPUT_MAX_AMP (((int32_t)1 << 23) - 1)
 
@@ -32,13 +33,17 @@ int main() {
     uint *reversed_indices = NULL;
     uint32_t saved_irq;
 
-    stdio_init_all();
+    // stdio_init_all();
 
-    // if (inmp441_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN) !=
-    //     RESULT_ALL_OK) {
-    //     printf("Audio init failed\n");
-    //     return EXIT_FAILURE;
-    // }
+    gpio_init(LR_PIN);
+    gpio_set_dir(LR_PIN, true);
+    gpio_set_pulls(LR_PIN, false, true);
+
+    if (inmp441_init(AUDIO_SAMPLES, SCK_PIN, WS_PIN, DATA_PIN) !=
+        RESULT_ALL_OK) {
+        printf("Audio init failed\n");
+        return EXIT_FAILURE;
+    }
 
     if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_ALL_OK) {
         printf("LED Driver init failed\n");
@@ -70,25 +75,25 @@ int main() {
     }
     fill_reversed_indices(reversed_indices, AUDIO_SAMPLES);
 
-    // Swapchain *audio_swapchain = inmp441_get_swapchain();
+    Swapchain *audio_swapchain = inmp441_get_swapchain();
     Swapchain *led_swapchain = ws2812_get_swapchain();
     SwapchainNode *node = NULL;
 
-    // inmp441_start_sampling();
+    inmp441_start_sampling();
     ws2812_start_transmission();
 
     // uint8_t position = 0;
     const float sample_per_led = (float)AUDIO_SAMPLES / (2 * LED_COUNT);
     // int32_t *signed_samples = malloc(AUDIO_SAMPLES * sizeof(int32_t));
     // uint32_t max = 0;
-    float phase = 0.f;
-    GRBAColor gradient_colors[] = {
-        {0},
-        {
-            .channels = {.red = 0xFF},
-        },
-        {0},
-    };
+    // float phase = 0.f;
+    // GRBAColor gradient_colors[] = {
+    //     {0},
+    //     {
+    //         .channels = {.red = 0xFF},
+    //     },
+    //     {0},
+    // };
 
 #ifdef PROFILE_FPS
     uint frames = 0;
@@ -96,25 +101,20 @@ int main() {
 #endif
 
     for (;;) {
-        // saved_irq = save_and_disable_interrupts();
-        // node = swapchain_borrow_for_read(audio_swapchain);
-        // restore_interrupts(saved_irq);
+        saved_irq = save_and_disable_interrupts();
+        node = swapchain_borrow_for_read(audio_swapchain);
+        restore_interrupts(saved_irq);
 
-        // const uint32_t *unsigned_samples =
-        //     (uint32_t *)swapchain_node_get_buffer_ptr(node);
+        const int32_t *samples = (int32_t *)swapchain_node_get_buffer_ptr(node);
 
-        // for (uint i = 0; i < AUDIO_SAMPLES; i++) {
-        //     int32_t signed_sample = (int32_t)(unsigned_samples[i] << 8);
-        //     signed_sample >>= 8;
-        //     printf("%d\n", signed_sample);
-        //     fft_samples[i] = (float)signed_sample / AUDIO_INPUT_MAX_AMP;
-        // }
+        for (uint i = 0; i < AUDIO_SAMPLES; i++)
+            fft_samples[i] = (float)(samples[i] >> 8) / AUDIO_INPUT_MAX_AMP;
 
-        // unsigned_samples = NULL;
+        samples = NULL;
 
-        // saved_irq = save_and_disable_interrupts();
-        // swapchain_return_after_read(audio_swapchain, node);
-        // restore_interrupts(saved_irq);
+        saved_irq = save_and_disable_interrupts();
+        swapchain_return_after_read(audio_swapchain, node);
+        restore_interrupts(saved_irq);
 
         // for (uint i = 0; i < AUDIO_SAMPLES; i++) {
         //     if (audio_samples[i] > max) {
@@ -124,7 +124,7 @@ int main() {
         // }
 
         // for (uint i = 0; i < AUDIO_SAMPLES; i++) {
-        //     color.channels.red = cabs(fft_samples[i]) * 0xFF;
+        //     color.channels.red = creal(fft_samples[i]) * 0xFF;
         //     canvas_point(&canvas, i, color);
         // }
 
@@ -132,18 +132,18 @@ int main() {
         //     printf("%.2f  ", creal(fft_samples[i]));
         // printf("\n");
 
-        // fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
+        fft_dif_rad2(fft_samples, twiddles, AUDIO_SAMPLES);
 
-        // for (uint i = 1; i < LED_COUNT; i++) {
-        //     uint fft_index = (uint)(sample_per_led * i);
+        for (uint i = 1; i < LED_COUNT; i++) {
+            uint fft_index = (uint)(sample_per_led * i);
 
-        //     float normalized_sample =
-        //         2.f * cabs(fft_samples[reversed_indices[fft_index]]) /
-        //         AUDIO_SAMPLES;
+            float normalized_sample =
+                2.f * cabs(fft_samples[reversed_indices[fft_index]]) /
+                AUDIO_SAMPLES;
 
-        //     color.channels.red = (uint8_t)(normalized_sample * 0xFF);
-        //     canvas_point(&canvas, i, color);
-        // }
+            color.channels.red = (uint8_t)(normalized_sample * 0xFF);
+            canvas_point(&canvas, i, color);
+        }
 
         // color.channels.green = position;
         // canvas_clear(&canvas, color);
@@ -153,11 +153,11 @@ int main() {
 
         // canvas_line_gradient(&canvas, 0, LED_COUNT, gradient_colors,
         //                      count_of(gradient_colors));
-        canvas_line_rainbow(&canvas, 0, LED_COUNT, phase);
+        // canvas_line_rainbow(&canvas, 0, LED_COUNT, phase);
 
-        phase += 1.f;
-        if (phase >= 360.f)
-            phase = 0.f;
+        // phase += 1.f;
+        // if (phase >= 360.f)
+        //     phase = 0.f;
 
         saved_irq = save_and_disable_interrupts();
         node = swapchain_borrow_for_write(led_swapchain);
@@ -181,7 +181,7 @@ int main() {
 #endif
     }
 
-    // inmp441_stop_sampling();
+    inmp441_stop_sampling();
     ws2812_stop_transmission();
 
     free(reversed_indices);
