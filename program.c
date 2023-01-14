@@ -26,10 +26,66 @@
 
 static float complex *samples = NULL;
 static float complex *twiddles = NULL;
+static float *envelope = NULL;
 static uint *reversed_indices = NULL;
 static Canvas canvas;
 
 const float sample_per_led = (0.3f * FREQ_BIN_COUNT) / LED_COUNT;
+
+static inline void cache_envelope() {
+    envelope = malloc(SAMPLE_COUNT * sizeof(float));
+
+    double angle_per_sample = M_PI / SAMPLE_COUNT;
+    for (uint i = 0; i < SAMPLE_COUNT; i++)
+        envelope[i] = sin(angle_per_sample * i);
+}
+
+static inline void cache_twiddles() {
+    twiddles = malloc(FREQ_BIN_COUNT * sizeof(float complex));
+    fill_twiddles(twiddles, SAMPLE_COUNT);
+}
+
+static inline void cache_reversed_indices() {
+    reversed_indices = malloc(SAMPLE_COUNT * sizeof(uint));
+    fill_reversed_indices(reversed_indices, SAMPLE_COUNT);
+}
+
+static inline void setup_gpio() {
+    gpio_init(LR_PIN);
+    gpio_set_dir(LR_PIN, true);
+    gpio_set_pulls(LR_PIN, false, true);
+}
+
+static inline void setup_drivers() {
+    if (inmp441_init(SAMPLE_COUNT, SCK_PIN, WS_PIN, DATA_PIN) !=
+        RESULT_ALL_OK) {
+        printf("Audio init failed\n");
+    }
+
+    if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_ALL_OK) {
+        printf("LED Driver init failed\n");
+    }
+
+    if (canvas_init(&canvas, LED_COUNT) != RESULT_ALL_OK) {
+        printf("Canvas init failed\n");
+    }
+}
+
+static inline void setup() {
+    // stdio_init_all();
+
+    setup_gpio();
+    setup_drivers();
+
+    samples = malloc(SAMPLE_COUNT * sizeof(float complex));
+    if (!samples) {
+        printf("FFT Samples alloc failed\n");
+    }
+
+    cache_twiddles();
+    cache_reversed_indices();
+    cache_envelope();
+}
 
 static inline float get_abs_freq_bin(uint i) {
     return cabsf(samples[reversed_indices[i]]) / FREQ_BIN_COUNT;
@@ -102,47 +158,7 @@ static inline GRBAColor led_get_color(uint i) {
 int main() {
     uint32_t saved_irq;
 
-    // stdio_init_all();
-
-    gpio_init(LR_PIN);
-    gpio_set_dir(LR_PIN, true);
-    gpio_set_pulls(LR_PIN, false, true);
-
-    if (inmp441_init(SAMPLE_COUNT, SCK_PIN, WS_PIN, DATA_PIN) !=
-        RESULT_ALL_OK) {
-        printf("Audio init failed\n");
-        return EXIT_FAILURE;
-    }
-
-    if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_ALL_OK) {
-        printf("LED Driver init failed\n");
-        return EXIT_FAILURE;
-    }
-
-    if (canvas_init(&canvas, LED_COUNT) != RESULT_ALL_OK) {
-        printf("Canvas init failed\n");
-        return EXIT_FAILURE;
-    }
-
-    samples = malloc(SAMPLE_COUNT * sizeof(float complex));
-    if (!samples) {
-        printf("FFT Samples alloc failed\n");
-        return EXIT_FAILURE;
-    }
-
-    twiddles = malloc(FREQ_BIN_COUNT * sizeof(float complex));
-    if (!twiddles) {
-        printf("Twiddles alloc failed\n");
-        return EXIT_FAILURE;
-    }
-    fill_twiddles(twiddles, SAMPLE_COUNT);
-
-    reversed_indices = malloc(SAMPLE_COUNT * sizeof(uint));
-    if (!reversed_indices) {
-        printf("Reversed indices alloc failed\n");
-        return EXIT_FAILURE;
-    }
-    fill_reversed_indices(reversed_indices, SAMPLE_COUNT);
+    setup();
 
     Swapchain *audio_swapchain = inmp441_get_swapchain();
     Swapchain *led_swapchain = ws2812_get_swapchain();
@@ -164,10 +180,10 @@ int main() {
         const int32_t *int_samples =
             (int32_t *)swapchain_node_get_buffer_ptr(node);
 
-        for (uint i = 0; i < SAMPLE_COUNT; i++)
+        for (uint i = 0; i < SAMPLE_COUNT; i++) {
             samples[i] = (float)(int_samples[i] >> 8) / AUDIO_INPUT_MAX_AMP;
-
-        int_samples = NULL;
+            samples[i] *= envelope[i];
+        }
 
         saved_irq = save_and_disable_interrupts();
         swapchain_return_after_read(audio_swapchain, node);
@@ -199,16 +215,6 @@ int main() {
         }
 #endif
     }
-
-    inmp441_stop_sampling();
-    ws2812_stop_transmission();
-
-    free(reversed_indices);
-    free(twiddles);
-    free(samples);
-    canvas_deinit(&canvas);
-    ws2812_deinit();
-    inmp441_deinit();
 
     return EXIT_SUCCESS;
 }
