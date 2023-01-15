@@ -13,14 +13,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define SPECTRUM_COVERAGE 0.3f
-#define ATTENUATE_FACTOR 6
-#define OUTPUT_SCALE 5.f
-
 #define SAMPLE_COUNT 64
 #define LED_COUNT 300
-#define AUDIO_INPUT_MAX_AMP (((int32_t)1 << 23) - 1)
-#define FREQ_BIN_COUNT (SAMPLE_COUNT / 2)
+
+#define SPECTRUM_COVERAGE 0.2f
+#define ATTENUATE_FACTOR 4
+#define OUTPUT_SCALE 5.f
 
 #define SCK_PIN 10
 #define WS_PIN 11
@@ -28,15 +26,19 @@
 #define LED_PIN 13
 #define LR_PIN 14
 
+#define AUDIO_INPUT_MAX_AMP (((int32_t)1 << 23) - 1)
+#define FREQ_BIN_COUNT (SAMPLE_COUNT / 2)
+
 static float complex *samples = NULL;
 static float complex *twiddles = NULL;
 static float *envelope = NULL;
 static uint *reversed_indices = NULL;
 static Canvas canvas;
 
-const float sample_per_led = (SPECTRUM_COVERAGE * FREQ_BIN_COUNT) / LED_COUNT;
+const float sample_per_led =
+    (SPECTRUM_COVERAGE * (FREQ_BIN_COUNT - 1)) / LED_COUNT;
 
-static inline float get_abs_freq_bin(uint i) {
+static inline float get_freq_at(uint i) {
     return cabsf(samples[reversed_indices[i]]) / FREQ_BIN_COUNT;
 }
 
@@ -94,8 +96,16 @@ static inline GRBAColor hsv_to_rgb(uint8_t h, uint8_t s, uint8_t v) {
     return rgb;
 }
 
-static inline GRBAColor led_get_color(uint i) {
-    float freq_bin = get_abs_freq_bin((sample_per_led * i) + 1) * OUTPUT_SCALE;
+static inline GRBAColor get_color_at(uint i) {
+    float exact_index = sample_per_led * i;
+    uint sample_index = (uint)exact_index;
+    float frac = exact_index - sample_index;
+
+    // float freq_bin = get_freq_at(sample_index + 1);
+    float freq_bin = (get_freq_at(sample_index + 1) * (1.f - frac)) +
+                     (get_freq_at(sample_index + 2) * frac);
+    freq_bin *= OUTPUT_SCALE;
+
     if (freq_bin > 1.f)
         freq_bin = 1.f;
 
@@ -151,6 +161,7 @@ static inline void setup_buffers() {
 }
 
 static inline void setup() {
+    set_sys_clock_khz(200000, true);
     setup_gpio();
     setup_drivers();
     setup_buffers();
@@ -183,8 +194,9 @@ int main() {
 
         for (uint i = 0; i < SAMPLE_COUNT; i++) {
             int32_t sample = int_samples[i] & 0xFFFFFF00;
-            samples[i] = (sample >> ATTENUATE_FACTOR) * envelope[i] /
-                         AUDIO_INPUT_MAX_AMP;
+            samples[i] =
+                (float)(sample >> ATTENUATE_FACTOR) / AUDIO_INPUT_MAX_AMP;
+            samples[i] *= envelope[i];
         }
 
         saved_irq = save_and_disable_interrupts();
@@ -194,7 +206,7 @@ int main() {
         fft_rad2_dif(samples, twiddles, SAMPLE_COUNT);
 
         for (uint i = 1; i < LED_COUNT; i++)
-            canvas_point(&canvas, i, led_get_color(i));
+            canvas_point(&canvas, i, get_color_at(i));
 
         saved_irq = save_and_disable_interrupts();
         node = swapchain_borrow_for_write(led_swapchain);
