@@ -1,0 +1,3 @@
+# Light Painting
+
+Simple and ultra fast music visualizer using RP2040 (Raspberry Pi Pico). It uses the trustworthy MEMS microphone INMP441 and outputs the visualization into an RGB addressable LED strip WS2812
