@@ -87,7 +87,7 @@ void fill_twiddles_d(double complex *twiddles, uint N) {
         twiddles[i] = cexp(angle_per_sample * i * I);
 }
 
-void fft_dit_rad2(float complex *X, const float complex *twiddles,
+void fft_rad2_dit(float complex *X, const float complex *twiddles,
                   const uint *reversed_indices, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
@@ -135,7 +135,7 @@ void fft_dit_rad2(float complex *X, const float complex *twiddles,
     }
 }
 
-void fft_dit_rad2_d(double complex *X, const double complex *twiddles,
+void fft_rad2_dit_d(double complex *X, const double complex *twiddles,
                     const uint *reversed_indices, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
@@ -183,7 +183,7 @@ void fft_dit_rad2_d(double complex *X, const double complex *twiddles,
     }
 }
 
-void fft_dif_rad2(float complex *X, const float complex *twiddles, uint N) {
+void fft_rad2_dif(float complex *X, const float complex *twiddles, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     float complex twiddle, butterfly_top, butterfly_bottom;
@@ -230,7 +230,7 @@ void fft_dif_rad2(float complex *X, const float complex *twiddles, uint N) {
     }
 }
 
-void fft_dif_rad2_d(double complex *X, const double complex *twiddles, uint N) {
+void fft_rad2_dif_d(double complex *X, const double complex *twiddles, uint N) {
     uint halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     double complex twiddle, butterfly_top, butterfly_bottom;
