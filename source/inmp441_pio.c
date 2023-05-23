@@ -56,7 +56,7 @@ static INMP441PIODriver driver = {
 
 static void dma_irq_handler() {
     swapchain_return_after_write(&driver.swapchain, driver.write_node);
-    driver.write_node = swapchain_borrow_for_write(&driver.swapchain);
+    driver.write_node = swapchain_try_borrow_for_write(&driver.swapchain);
     dma_channel_acknowledge_irq0(driver.dma_channel);
     dma_channel_set_write_addr(driver.dma_channel,
                                swapchain_node_get_buffer_ptr(driver.write_node),
@@ -138,7 +138,7 @@ void inmp441_start_sampling() {
     if (driver.is_transmitting)
         return;
 
-    driver.write_node = swapchain_borrow_for_write(&driver.swapchain);
+    driver.write_node = swapchain_try_borrow_for_write(&driver.swapchain);
     dma_channel_set_write_addr(driver.dma_channel,
                                swapchain_node_get_buffer_ptr(driver.write_node),
                                true);

@@ -2,6 +2,7 @@
 
 #include "pico/types.h"
 #include "types.h"
+#include <stdbool.h>
 
 typedef struct SwapchainNode SwapchainNode;
 typedef struct Swapchain Swapchain;
@@ -13,8 +14,8 @@ struct Swapchain {
 };
 
 struct SwapchainNode {
-    uint index;
     void *buffer;
+    bool borrowed;
     SwapchainNode *next;
     SwapchainNode *prev;
 };
@@ -35,7 +36,7 @@ void swapchain_init(Swapchain *chain, uint buffer_size, uint nodes);
  * @param chain
  * @return uint
  */
-uint swapchain_get_buffer_size(Swapchain *chain);
+uint swapchain_get_buffer_size(const Swapchain *chain);
 
 /**
  * @brief Get the number of nodes in the swapchain
@@ -43,10 +44,11 @@ uint swapchain_get_buffer_size(Swapchain *chain);
  * @param chain
  * @return uint
  */
-uint swapchain_get_nodes(Swapchain *chain);
+uint swapchain_get_node_count(const Swapchain *chain);
 
 /**
- * @brief Borrow a Node for writing to it
+ * @brief Tries to borrow a Node for writing to it. Returns NULL if none
+ * available
  *
  *  Borrows the node next to the cursor.
  *  Keeps cursor unchanged.
@@ -54,7 +56,7 @@ uint swapchain_get_nodes(Swapchain *chain);
  * @param chain
  * @return Node*
  */
-SwapchainNode *swapchain_borrow_for_write(Swapchain *chain);
+SwapchainNode *swapchain_try_borrow_for_write(Swapchain *chain);
 
 /**
  * @brief Return a Node after writing
@@ -76,7 +78,7 @@ void swapchain_return_after_write(Swapchain *chain, SwapchainNode *node);
  * @param chain
  * @return Node*
  */
-SwapchainNode *swapchain_borrow_for_read(Swapchain *chain);
+SwapchainNode *swapchain_try_borrow_for_read(Swapchain *chain);
 
 /**
  * @brief Return a Node after reading
@@ -106,4 +108,4 @@ void swapchain_deinit(Swapchain *chain);
  * @param frame The pointer to the initialized audio frame in memory
  * @return uint32_t* The pointer to the start of the buffer
  */
-void *swapchain_node_get_buffer_ptr(SwapchainNode *node);
+void *swapchain_node_get_buffer_ptr(const SwapchainNode *node);

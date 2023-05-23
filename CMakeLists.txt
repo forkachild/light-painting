@@ -1,41 +1,33 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.25)
 
-include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
-
-project(LightPainting C CXX ASM)
 set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-
-pico_sdk_init()
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_compile_options(
     -Wall
+    -Werror
     -Wno-format
     -Wno-unused-function
     -Wno-maybe-uninitialized
 )
 
+include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+
+project(LightPainting)
+
+pico_sdk_init()
+
 add_executable(LightPainting)
 
-file(GLOB PIO_ASM_SRCS pio/*.pio)
-foreach(PIO_ASM_SRC ${PIO_ASM_SRCS})
-    pico_generate_pio_header(LightPainting ${PIO_ASM_SRC} OUTPUT_DIR include/pio)
+file(GLOB PIO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/source/pio/*.pio)
+file(GLOB C_FILES ${CMAKE_CURRENT_SOURCE_DIR}/source/*.c)
+
+foreach(PIO_FILE ${PIO_FILES})
+    pico_generate_pio_header(LightPainting ${PIO_FILE} OUTPUT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include/pio)
 endforeach()
 
-# add_definitions(-DPROFILE_FPS)
-
-target_sources(LightPainting
-    PRIVATE
-        program.c
-        ws2812_pio.c
-        inmp441_pio.c
-        swapchain.c
-        canvas.c
-        fft.c
-        status.c
-)
-
-target_include_directories(LightPainting PUBLIC include)
+target_sources(LightPainting PRIVATE ${C_FILES})
+target_include_directories(LightPainting PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 target_link_libraries(LightPainting
     pico_stdlib
@@ -45,5 +37,5 @@ target_link_libraries(LightPainting
 )
 
 pico_add_extra_outputs(LightPainting)
-pico_enable_stdio_usb(LightPainting 1)
-pico_enable_stdio_uart(LightPainting 0)
+pico_enable_stdio_usb(LightPainting ON)
+pico_enable_stdio_uart(LightPainting OFF)

@@ -186,7 +186,7 @@ int main() {
 
     for (;;) {
         saved_irq = save_and_disable_interrupts();
-        node = swapchain_borrow_for_read(audio_swapchain);
+        node = swapchain_try_borrow_for_read(audio_swapchain);
         restore_interrupts(saved_irq);
 
         const int32_t *int_samples =
@@ -209,7 +209,7 @@ int main() {
             canvas_point(&canvas, i, get_color_at(i));
 
         saved_irq = save_and_disable_interrupts();
-        node = swapchain_borrow_for_write(led_swapchain);
+        node = swapchain_try_borrow_for_write(led_swapchain);
         restore_interrupts(saved_irq);
 
         memcpy(swapchain_node_get_buffer_ptr(node),

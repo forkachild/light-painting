@@ -6,7 +6,8 @@
 .program inmp441
 .side_set 2
 
-.define public required_clock   6144000
+; .define public required_clock   6144000
+.define public required_clock   6410000
 .define public bits_in_per_word    32
 
     set x, 30        side 0b00

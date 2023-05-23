@@ -42,22 +42,12 @@ static WS2812PIODriver driver = {
     .is_transmitting = false,
 };
 
-static uint frames = 0;
-static absolute_time_t last_frame_time = {0};
-
 static void dma_irq_handler() {
     swapchain_return_after_read(&driver.swapchain, driver.read_node);
-    driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
+    driver.read_node = swapchain_try_borrow_for_read(&driver.swapchain);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     pio_sm_exec(driver.pio, driver.pio_sm,
                 pio_encode_jmp(driver.pio_offset + ws2812_offset_sync));
-
-    frames++;
-    absolute_time_t time_now = get_absolute_time();
-    if (to_ms_since_boot(time_now) - to_ms_since_boot(last_frame_time) > 1000) {
-        last_frame_time = time_now;
-        frames = 0;
-    }
 
     dma_channel_set_read_addr(driver.dma_channel,
                               swapchain_node_get_buffer_ptr(driver.read_node),
@@ -131,7 +121,7 @@ void ws2812_start_transmission() {
     if (driver.is_transmitting)
         return;
 
-    driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
+    driver.read_node = swapchain_try_borrow_for_read(&driver.swapchain);
     dma_channel_set_read_addr(driver.dma_channel,
                               swapchain_node_get_buffer_ptr(driver.read_node),
                               true);

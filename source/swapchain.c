@@ -15,17 +15,24 @@ void swapchain_init(Swapchain *chain, uint buffer_size, uint nodes) {
     uint i;
     SwapchainNode *current, *next;
 
-    chain->cursor = (SwapchainNode *)malloc(nodes * sizeof(SwapchainNode));
+    void *p_mem = malloc(nodes * (sizeof(SwapchainNode) + buffer_size));
+
+    chain->cursor = p_mem;
     chain->buffer_size = buffer_size;
     chain->nodes = nodes;
+
+    void *p_buffer_mem = p_mem + (nodes * sizeof(SwapchainNode));
 
     for (i = 0; i < nodes; i++) {
         current = &chain->cursor[i];
         next = &chain->cursor[(i + 1) % nodes];
-        current->index = i + 1;
-        current->buffer = malloc(buffer_size);
+
+        current->borrowed = false;
+        current->buffer = p_buffer_mem;
         current->next = next;
         next->prev = current;
+
+        p_buffer_mem += buffer_size;
     }
 }
 
@@ -35,7 +42,9 @@ void swapchain_init(Swapchain *chain, uint buffer_size, uint nodes) {
  * @param chain
  * @return uint
  */
-uint swapchain_get_buffer_size(Swapchain *chain) { return chain->buffer_size; }
+uint swapchain_get_buffer_size(const Swapchain *chain) {
+    return chain->buffer_size;
+}
 
 /**
  * @brief Get the number of nodes in the swapchain
@@ -43,7 +52,7 @@ uint swapchain_get_buffer_size(Swapchain *chain) { return chain->buffer_size; }
  * @param chain
  * @return uint
  */
-uint swapchain_get_nodes(Swapchain *chain) { return chain->nodes; }
+uint swapchain_get_node_count(const Swapchain *chain) { return chain->nodes; }
 
 /**
  * @brief Borrow a Node for writing to it
@@ -54,7 +63,7 @@ uint swapchain_get_nodes(Swapchain *chain) { return chain->nodes; }
  * @param chain
  * @return Node*
  */
-SwapchainNode *swapchain_borrow_for_write(Swapchain *chain) {
+SwapchainNode *swapchain_try_borrow_for_write(Swapchain *chain) {
     SwapchainNode *taken;
 
     if ((taken = chain->cursor->next) == chain->cursor)
@@ -98,7 +107,7 @@ void swapchain_return_after_write(Swapchain *chain, SwapchainNode *node) {
  * @param chain
  * @return Node*
  */
-SwapchainNode *swapchain_borrow_for_read(Swapchain *chain) {
+SwapchainNode *swapchain_try_borrow_for_read(Swapchain *chain) {
     SwapchainNode *taken;
 
     if ((taken = chain->cursor) == chain->cursor->next)
@@ -131,6 +140,16 @@ void swapchain_return_after_read(Swapchain *chain, SwapchainNode *node) {
 }
 
 /**
+ * @brief Returns the raw pointer in memory for the audio buffer
+ *
+ * @param frame The pointer to the initialized audio frame in memory
+ * @return void* The pointer to the start of the buffer
+ */
+void *swapchain_node_get_buffer_ptr(const SwapchainNode *node) {
+    return node->buffer;
+}
+
+/**
  * @brief Destroy the chain
  *
  * Renders the chain useless after this call. Any
@@ -140,24 +159,9 @@ void swapchain_return_after_read(Swapchain *chain, SwapchainNode *node) {
  * @param chain Pointer to the chain
  */
 void swapchain_deinit(Swapchain *chain) {
-    uint i;
-
     if (!chain)
         return;
 
-    for (i = 0; i < chain->nodes; i++) {
-        free(chain->cursor[i].buffer);
-    }
-
+    // Unified memory model
     free(chain->cursor);
-}
-
-/**
- * @brief Returns the raw pointer in memory for the audio buffer
- *
- * @param frame The pointer to the initialized audio frame in memory
- * @return void* The pointer to the start of the buffer
- */
-void *swapchain_node_get_buffer_ptr(SwapchainNode *node) {
-    return node->buffer;
 }
