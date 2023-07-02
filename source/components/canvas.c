@@ -1,4 +1,4 @@
-#include "canvas.h"
+#include "components/canvas.h"
 
 #include "pico/stdlib.h"
 #include "pico/types.h"
@@ -79,7 +79,7 @@ Result canvas_init(Canvas *canvas, uint count) {
     if (!canvas->buffer)
         return RESULT_MEM_ERR;
 
-    return RESULT_ALL_OK;
+    return RESULT_OK;
 }
 
 void canvas_clear(Canvas *canvas, GRBAColor color) {
@@ -103,7 +103,7 @@ void canvas_line(Canvas *canvas, uint start, uint end, GRBAColor color) {
     if (start >= end)
         return;
 
-    for (int i = start; i < end; i++)
+    for (uint i = start; i < end; i++)
         canvas->buffer[i] = color.value;
 }
 
@@ -151,7 +151,7 @@ void canvas_line_rainbow(Canvas *canvas, uint start, uint end, float phase) {
 
     degree_delta = 360.f / (end - start);
 
-    for (int i = start; i < end; i++) {
+    for (uint i = start; i < end; i++) {
         degrees = degree_delta * i;
         degrees = degrees + phase;
         degrees = fmodf(degrees, 360.f);
@@ -163,5 +163,5 @@ uint32_t *canvas_get_grba_buffer(Canvas *canvas) { return canvas->buffer; }
 
 Result canvas_deinit(Canvas *canvas) {
     free(canvas->buffer);
-    return RESULT_ALL_OK;
+    return RESULT_OK;
 }

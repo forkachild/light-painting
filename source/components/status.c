@@ -1,4 +1,4 @@
-#include "status.h"
+#include "components/status.h"
 #include "pico/stdlib.h"
 #include "pico/types.h"
 
@@ -14,7 +14,7 @@ void status_init() {
 void status_show(bool value) { gpio_put(PICO_DEFAULT_LED_PIN, value); }
 
 void status_blink_blocking(uint32_t times, uint32_t delay) {
-    for (int i = 0; i < times; i++) {
+    for (uint i = 0; i < times; i++) {
         gpio_put(PICO_DEFAULT_LED_PIN, true);
         sleep_ms(delay);
         gpio_put(PICO_DEFAULT_LED_PIN, false);

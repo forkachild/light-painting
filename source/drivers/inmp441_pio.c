@@ -1,13 +1,12 @@
-#include "inmp441_pio.h"
+#include "drivers/inmp441_pio.h"
 
+#include "components/buffer.h"
+#include "drivers/i2s_mono.pio.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
 #include "pico/sync.h"
-#include "pio/i2s_driver.pio.h"
-#include "swapchain.h"
-#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -36,10 +35,10 @@ typedef struct {
     uint data_pin;
 
     // Swapchain used to circle the buffers
-    Swapchain swapchain;
+    AsyncBuffer buffer;
 
     // Written node cached
-    SwapchainNode *write_node;
+    AsyncBufferNode *write_node;
 
     // Whether the driver is initialized
     bool is_init;
@@ -55,11 +54,11 @@ static INMP441PIODriver driver = {
 };
 
 static void dma_irq_handler() {
-    swapchain_return_after_write(&driver.swapchain, driver.write_node);
-    driver.write_node = swapchain_try_borrow_for_write(&driver.swapchain);
+    async_buffer_producer_submit(&driver.buffer, driver.write_node);
+    driver.write_node = async_buffer_producer_obtain(&driver.buffer);
     dma_channel_acknowledge_irq0(driver.dma_channel);
     dma_channel_set_write_addr(driver.dma_channel,
-                               swapchain_node_get_buffer_ptr(driver.write_node),
+                               async_buffer_node_data_ptr(driver.write_node),
                                true);
 }
 
@@ -67,7 +66,7 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
-    Swapchain swapchain;
+    AsyncBuffer buffer;
     dma_channel_config dma_config;
 
     if (driver.is_init)
@@ -78,13 +77,23 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
         data_pin >= NUM_BANK0_GPIOS)
         return RESULT_ARG_ERR;
 
-    // SCK and WS **MUST** be consecutive pins
+    // SCK and WS **MUST** be consecutive pins in that order
     if (sck_pin + 1 != ws_pin)
         return RESULT_ARG_ERR;
 
-    // Start with first PIO
-    if (!(pio = pio_find(&inmp441_program)))
-        return RESULT_PIO_ERR;
+    // Start with PIO0
+    pio = pio0;
+
+    // Check if the program can be loaded in the pio
+    if (!pio_can_add_program(pio, &i2s_mono_program)) {
+        // Try the next, PIO1
+        pio = pio1;
+
+        if (!pio_can_add_program(pio, &i2s_mono_program)) {
+            // Guard if not
+            return RESULT_PIO_ERR;
+        }
+    }
 
     // Try to grab an unused State Machine
     if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
@@ -100,10 +109,10 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     }
 
     // Load the PIO program in memory and initialize it
-    pio_offset = pio_add_program(pio, &inmp441_program);
-    inmp441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
+    pio_offset = pio_add_program(pio, &i2s_mono_program);
+    i2s_mono_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
 
-    swapchain_init(&swapchain, samples * sizeof(uint32_t), SWAPCHAIN_LENGTH);
+    async_buffer_init(&buffer, samples * sizeof(uint32_t));
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
@@ -128,19 +137,19 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     driver.sck_pin = sck_pin;
     driver.ws_pin = ws_pin;
     driver.data_pin = data_pin;
-    driver.swapchain = swapchain;
+    driver.buffer = buffer;
     driver.is_init = true;
 
-    return RESULT_ALL_OK;
+    return RESULT_OK;
 }
 
 void inmp441_start_sampling() {
     if (driver.is_transmitting)
         return;
 
-    driver.write_node = swapchain_try_borrow_for_write(&driver.swapchain);
+    driver.write_node = async_buffer_producer_obtain(&driver.buffer);
     dma_channel_set_write_addr(driver.dma_channel,
-                               swapchain_node_get_buffer_ptr(driver.write_node),
+                               async_buffer_node_data_ptr(driver.write_node),
                                true);
 
     driver.is_transmitting = true;
@@ -154,11 +163,12 @@ void inmp441_stop_sampling() {
     dma_channel_abort(driver.dma_channel);
     dma_channel_acknowledge_irq0(driver.dma_channel);
     dma_channel_set_irq0_enabled(driver.dma_channel, true);
+    async_buffer_producer_submit(&driver.buffer, driver.write_node);
 
     driver.is_transmitting = false;
 }
 
-Swapchain *inmp441_get_swapchain() { return &driver.swapchain; }
+AsyncBuffer *inmp441_get_async_buffer() { return &driver.buffer; }
 
 Result inmp441_deinit() {
     // Check if valid in memory
@@ -166,11 +176,11 @@ Result inmp441_deinit() {
         return RESULT_NOT_INIT;
 
     inmp441_stop_sampling();
-    swapchain_deinit(&driver.swapchain);
+    async_buffer_deinit(&driver.buffer);
 
-    inmp441_program_deinit(driver.pio, driver.pio_sm);
+    i2s_mono_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
-    pio_remove_program(driver.pio, &inmp441_program, driver.pio_offset);
+    pio_remove_program(driver.pio, &i2s_mono_program, driver.pio_offset);
 
-    return RESULT_ALL_OK;
+    return RESULT_OK;
 }

@@ -9,8 +9,8 @@ typedef struct Swapchain Swapchain;
 
 struct Swapchain {
     SwapchainNode *cursor;
-    uint buffer_size;
-    uint nodes;
+    uint size;
+    uint length;
 };
 
 struct SwapchainNode {
@@ -25,10 +25,10 @@ struct SwapchainNode {
  * other swapchain_*() methods
  *
  * @param chain Pointer to an initialized swapchain in memory
- * @param buffer_size Size of buffer in each node (in bytes)
- * @param nodes Number of swappable nodes
+ * @param size Size of buffer in each node (in bytes)
+ * @param length Number of swappable nodes
  */
-void swapchain_init(Swapchain *chain, uint buffer_size, uint nodes);
+void swapchain_init(Swapchain *chain, uint size, uint length);
 
 /**
  * @brief Get the size of each buffer contained inside each node
@@ -36,7 +36,7 @@ void swapchain_init(Swapchain *chain, uint buffer_size, uint nodes);
  * @param chain
  * @return uint
  */
-uint swapchain_get_buffer_size(const Swapchain *chain);
+uint swapchain_get_size(const Swapchain *chain);
 
 /**
  * @brief Get the number of nodes in the swapchain
@@ -44,7 +44,7 @@ uint swapchain_get_buffer_size(const Swapchain *chain);
  * @param chain
  * @return uint
  */
-uint swapchain_get_node_count(const Swapchain *chain);
+uint swapchain_get_length(const Swapchain *chain);
 
 /**
  * @brief Tries to borrow a Node for writing to it. Returns NULL if none
@@ -59,10 +59,10 @@ uint swapchain_get_node_count(const Swapchain *chain);
 SwapchainNode *swapchain_try_borrow_for_write(Swapchain *chain);
 
 /**
- * @brief Return a Node after writing
+ * @brief Return a Node after reading
  *
  * Inserts the node next to the cursor.
- * Moves the cursor to the inserted node.
+ * Keeps cursor unchanged.
  *
  * @param chain
  * @param node
@@ -105,7 +105,7 @@ void swapchain_deinit(Swapchain *chain);
 /**
  * @brief Returns the raw pointer in memory for the audio buffer
  *
- * @param frame The pointer to the initialized audio frame in memory
- * @return uint32_t* The pointer to the start of the buffer
+ * @param node The pointer to the initialized audio frame in memory
+ * @return The pointer to the start of the buffer
  */
-void *swapchain_node_get_buffer_ptr(const SwapchainNode *node);
+void *swapchain_node_get_p_buffer(const SwapchainNode *node);

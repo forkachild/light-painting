@@ -1,8 +1,6 @@
 #pragma once
 
-#include "hardware/pio.h"
-#include "pico/types.h"
-#include "swapchain.h"
+#include "components/buffer.h"
 #include "types.h"
 
 Result ws2812_init(uint count, uint pin);
@@ -15,6 +13,6 @@ void ws2812_start_transmission();
 
 void ws2812_stop_transmission();
 
-Swapchain *ws2812_get_swapchain();
+AsyncBuffer *ws2812_get_async_buffer();
 
 Result ws2812_deinit();

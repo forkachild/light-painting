@@ -1,9 +1,9 @@
-#include "ws2812_pio.h"
+#include "drivers/ws2812_pio.h"
+#include "components/buffer.h"
+#include "drivers/ws2812.pio.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
-#include "pio/ws2812_driver.pio.h"
-#include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -24,10 +24,10 @@ typedef struct {
     uint dma_channel;
 
     // The swapchain to use
-    Swapchain swapchain;
+    AsyncBuffer buffer;
 
     // The node of the swapchain read last
-    SwapchainNode *read_node;
+    AsyncBufferNode *read_node;
 
     // Whether the driver is initialized
     bool is_init;
@@ -43,15 +43,13 @@ static WS2812PIODriver driver = {
 };
 
 static void dma_irq_handler() {
-    swapchain_return_after_read(&driver.swapchain, driver.read_node);
-    driver.read_node = swapchain_try_borrow_for_read(&driver.swapchain);
+    async_buffer_consumer_submit(&driver.buffer, driver.read_node);
+    driver.read_node = async_buffer_consumer_obtain(&driver.buffer);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     pio_sm_exec(driver.pio, driver.pio_sm,
                 pio_encode_jmp(driver.pio_offset + ws2812_offset_sync));
-
-    dma_channel_set_read_addr(driver.dma_channel,
-                              swapchain_node_get_buffer_ptr(driver.read_node),
-                              true);
+    dma_channel_set_read_addr(
+        driver.dma_channel, async_buffer_node_data_ptr(driver.read_node), true);
 }
 
 Result ws2812_init(uint count, uint pin) {
@@ -71,14 +69,16 @@ Result ws2812_init(uint count, uint pin) {
         // Try the next, PIO1
         pio = pio1;
 
-        if (!pio_can_add_program(pio, &ws2812_program))
+        if (!pio_can_add_program(pio, &ws2812_program)) {
             // Guard if not
             return RESULT_PIO_ERR;
+        }
     }
 
     // Try to grab an unused State Machine
-    if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
+    if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1) {
         return RESULT_PIO_ERR;
+    }
 
     if ((dma_channel = dma_claim_unused_channel(false)) == -1) {
         pio_sm_unclaim(pio, pio_sm);
@@ -103,7 +103,7 @@ Result ws2812_init(uint count, uint pin) {
     irq_set_exclusive_handler(DMA_IRQ_1, dma_irq_handler);
     irq_set_enabled(DMA_IRQ_1, true);
 
-    swapchain_init(&driver.swapchain, count * sizeof(uint32_t), 3);
+    async_buffer_init(&driver.buffer, count * sizeof(uint32_t));
 
     driver.pio = pio;
     driver.pio_sm = (uint)pio_sm;
@@ -112,7 +112,7 @@ Result ws2812_init(uint count, uint pin) {
     driver.dma_channel = (uint)dma_channel;
     driver.is_init = true;
 
-    return RESULT_ALL_OK;
+    return RESULT_OK;
 }
 
 bool ws2812_is_init() { return driver.is_init; }
@@ -121,11 +121,9 @@ void ws2812_start_transmission() {
     if (driver.is_transmitting)
         return;
 
-    driver.read_node = swapchain_try_borrow_for_read(&driver.swapchain);
-    dma_channel_set_read_addr(driver.dma_channel,
-                              swapchain_node_get_buffer_ptr(driver.read_node),
-                              true);
-
+    driver.read_node = async_buffer_consumer_obtain(&driver.buffer);
+    dma_channel_set_read_addr(
+        driver.dma_channel, async_buffer_node_data_ptr(driver.read_node), true);
     driver.is_transmitting = true;
 }
 
@@ -137,12 +135,12 @@ void ws2812_stop_transmission() {
     dma_channel_abort(driver.dma_channel);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     dma_channel_set_irq1_enabled(driver.dma_channel, true);
-    swapchain_return_after_read(&driver.swapchain, driver.read_node);
+    async_buffer_consumer_submit(&driver.buffer, driver.read_node);
 
     driver.is_transmitting = false;
 }
 
-Swapchain *ws2812_get_swapchain() { return &driver.swapchain; }
+AsyncBuffer *ws2812_get_async_buffer() { return &driver.buffer; }
 
 Result ws2812_deinit() {
     if (!driver.is_init)
@@ -150,7 +148,7 @@ Result ws2812_deinit() {
 
     ws2812_stop_transmission();
 
-    swapchain_deinit(&driver.swapchain);
+    async_buffer_deinit(&driver.buffer);
 
     // PIO ciao
     ws2812_program_deinit(driver.pio, driver.pio_sm);
@@ -159,5 +157,5 @@ Result ws2812_deinit() {
 
     driver.is_init = false;
 
-    return RESULT_ALL_OK;
+    return RESULT_OK;
 }

@@ -1,4 +1,4 @@
-#include "fft.h"
+#include "components/fft.h"
 #include "pico/stdlib.h"
 #include <complex.h>
 #include <math.h>

@@ -1,7 +1,7 @@
 #pragma once
 
 typedef enum {
-    RESULT_ALL_OK,
+    RESULT_OK,
     RESULT_NOT_INIT,
     RESULT_ALREADY_INIT,
     RESULT_DMA_ERR,
@@ -10,3 +10,8 @@ typedef enum {
     RESULT_ARG_ERR,
     RESULT_UNKNOWN_ERR,
 } Result;
+
+/**
+ * Input(Audio) -> InFilter(0) -> InFilter(1) -> ... -> FFT -> OutFilter(0) ->
+ * OutFilter(1) -> ... -> Output(LED)
+ */

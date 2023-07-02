@@ -1,14 +1,14 @@
-#include "canvas.h"
-#include "fft.h"
+#include "components/canvas.h"
+#include "components/fft.h"
+#include "components/status.h"
+#include "components/swapchain.h"
+#include "drivers/inmp441_pio.h"
+#include "drivers/ws2812_pio.h"
 #include "hardware/gpio.h"
-#include "inmp441_pio.h"
 #include "pico/stdlib.h"
 #include "pico/sync.h"
 #include "pico/time.h"
 #include "pico/types.h"
-#include "status.h"
-#include "swapchain.h"
-#include "ws2812_pio.h"
 #include <complex.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -120,16 +120,15 @@ static inline void setup_gpio() {
 }
 
 static inline void setup_drivers() {
-    if (inmp441_init(SAMPLE_COUNT, SCK_PIN, WS_PIN, DATA_PIN) !=
-        RESULT_ALL_OK) {
+    if (inmp441_init(SAMPLE_COUNT, SCK_PIN, WS_PIN, DATA_PIN) != RESULT_OK) {
         printf("Audio init failed\n");
     }
 
-    if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_ALL_OK) {
+    if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_OK) {
         printf("LED Driver init failed\n");
     }
 
-    if (canvas_init(&canvas, LED_COUNT) != RESULT_ALL_OK) {
+    if (canvas_init(&canvas, LED_COUNT) != RESULT_OK) {
         printf("Canvas init failed\n");
     }
 }
@@ -172,8 +171,8 @@ int main() {
 
     setup();
 
-    Swapchain *audio_swapchain = inmp441_get_swapchain();
-    Swapchain *led_swapchain = ws2812_get_swapchain();
+    Swapchain *audio_swapchain = NULL; // inmp441_get_swapchain();
+    Swapchain *led_swapchain = NULL;   // ws2812_get_swapchain();
     SwapchainNode *node = NULL;
 
     inmp441_start_sampling();
@@ -190,7 +189,7 @@ int main() {
         restore_interrupts(saved_irq);
 
         const int32_t *int_samples =
-            (int32_t *)swapchain_node_get_buffer_ptr(node);
+            (int32_t *)swapchain_node_get_p_buffer(node);
 
         for (uint i = 0; i < SAMPLE_COUNT; i++) {
             int32_t sample = int_samples[i] & 0xFFFFFF00;
@@ -212,7 +211,7 @@ int main() {
         node = swapchain_try_borrow_for_write(led_swapchain);
         restore_interrupts(saved_irq);
 
-        memcpy(swapchain_node_get_buffer_ptr(node),
+        memcpy(swapchain_node_get_p_buffer(node),
                canvas_get_grba_buffer(&canvas), LED_COUNT * sizeof(uint32_t));
 
         saved_irq = save_and_disable_interrupts();
