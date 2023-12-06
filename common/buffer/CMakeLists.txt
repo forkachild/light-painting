@@ -1,4 +1,4 @@
-project(buffer C)
+project(buffer C CXX ASM)
 add_library(buffer)
 
 target_sources(buffer

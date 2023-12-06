@@ -120,15 +120,15 @@ static inline void setup_gpio() {
 }
 
 static inline void setup_drivers() {
-    if (inmp441_init(SAMPLE_COUNT, SCK_PIN, WS_PIN, DATA_PIN) != RESULT_OK) {
+    if (inmp441_init(SAMPLE_COUNT, SCK_PIN, WS_PIN, DATA_PIN) != 0) {
         printf("Audio init failed\n");
     }
 
-    if (ws2812_init(LED_COUNT, LED_PIN) != RESULT_OK) {
+    if (ws2812_init(LED_COUNT, LED_PIN) != 0) {
         printf("LED Driver init failed\n");
     }
 
-    if (canvas_init(&canvas, LED_COUNT) != RESULT_OK) {
+    if (canvas_init(&canvas, LED_COUNT) != 0) {
         printf("Canvas init failed\n");
     }
 }

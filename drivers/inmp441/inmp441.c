@@ -60,7 +60,7 @@ static void dma_irq_handler() {
                                true);
 }
 
-Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
+int inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -68,16 +68,16 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     dma_channel_config dma_config;
 
     if (driver.is_init)
-        return RESULT_ALREADY_INIT;
+        return -1;
 
     // SCK, WS & Data must be
     if (sck_pin >= NUM_BANK0_GPIOS || ws_pin >= NUM_BANK0_GPIOS ||
         data_pin >= NUM_BANK0_GPIOS)
-        return RESULT_ARG_ERR;
+        return -1;
 
     // SCK and WS **MUST** be consecutive pins in that order
     if (sck_pin + 1 != ws_pin)
-        return RESULT_ARG_ERR;
+        return -1;
 
     // Start with PIO0
     pio = pio0;
@@ -89,13 +89,13 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
 
         if (!pio_can_add_program(pio, &inmp441_program)) {
             // Guard if not
-            return RESULT_PIO_ERR;
+            return -1;
         }
     }
 
     // Try to grab an unused State Machine
     if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
-        return RESULT_PIO_ERR;
+        return -1;
 
     // Check if an unused dma channel is available
     if ((dma_channel = dma_claim_unused_channel(false)) == -1) {
@@ -103,7 +103,7 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
         pio_sm_unclaim(pio, pio_sm);
 
         // Guard if not
-        return RESULT_DMA_ERR;
+        return -1;
     }
 
     // Load the PIO program in memory and initialize it
@@ -138,7 +138,7 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     driver.buffer = buffer;
     driver.is_init = true;
 
-    return RESULT_OK;
+    return 0;
 }
 
 void inmp441_start_sampling() {
@@ -168,10 +168,10 @@ void inmp441_stop_sampling() {
 
 AsyncBuffer *inmp441_get_async_buffer() { return &driver.buffer; }
 
-Result inmp441_deinit() {
+void inmp441_deinit() {
     // Check if valid in memory
     if (!driver.is_init)
-        return RESULT_NOT_INIT;
+    return;
 
     inmp441_stop_sampling();
     async_buffer_deinit(&driver.buffer);
@@ -179,6 +179,4 @@ Result inmp441_deinit() {
     inmp441_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
     pio_remove_program(driver.pio, &inmp441_program, driver.pio_offset);
-
-    return RESULT_OK;
 }

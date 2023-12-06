@@ -52,14 +52,14 @@ static void dma_irq_handler() {
         driver.dma_channel, async_buffer_node_data_ptr(driver.read_node), true);
 }
 
-Result ws2812_init(uint count, uint pin) {
+int ws2812_init(uint count, uint pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
     dma_channel_config dma_config;
 
     if (driver.is_init)
-        return RESULT_ALREADY_INIT;
+        return -1;
 
     // Start with PIO0
     pio = pio0;
@@ -71,18 +71,18 @@ Result ws2812_init(uint count, uint pin) {
 
         if (!pio_can_add_program(pio, &ws2812_program)) {
             // Guard if not
-            return RESULT_PIO_ERR;
+            return -1;
         }
     }
 
     // Try to grab an unused State Machine
     if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1) {
-        return RESULT_PIO_ERR;
+        return -1;
     }
 
     if ((dma_channel = dma_claim_unused_channel(false)) == -1) {
         pio_sm_unclaim(pio, pio_sm);
-        return RESULT_DMA_ERR;
+        return -1;
     }
 
     // Load the PIO program in memory and initialize it
@@ -112,7 +112,7 @@ Result ws2812_init(uint count, uint pin) {
     driver.dma_channel = (uint)dma_channel;
     driver.is_init = true;
 
-    return RESULT_OK;
+    return 0;
 }
 
 bool ws2812_is_init() { return driver.is_init; }
@@ -142,9 +142,9 @@ void ws2812_stop_transmission() {
 
 AsyncBuffer *ws2812_get_async_buffer() { return &driver.buffer; }
 
-Result ws2812_deinit() {
+void ws2812_deinit() {
     if (!driver.is_init)
-        return RESULT_NOT_INIT;
+        return;
 
     ws2812_stop_transmission();
 
@@ -156,6 +156,4 @@ Result ws2812_deinit() {
     pio_remove_program(driver.pio, &ws2812_program, driver.pio_offset);
 
     driver.is_init = false;
-
-    return RESULT_OK;
 }

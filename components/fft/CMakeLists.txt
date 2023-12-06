@@ -1,4 +1,4 @@
-project(fft C)
+project(fft C CXX ASM)
 add_library(fft)
 
 target_sources(fft

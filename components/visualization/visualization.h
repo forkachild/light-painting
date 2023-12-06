@@ -1,7 +1,6 @@
 #pragma once
 
 #include "buffer.h"
-#include "types.h"
 #include <pico/types.h>
 
 typedef struct Visualization {

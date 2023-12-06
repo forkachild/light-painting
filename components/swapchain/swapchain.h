@@ -1,7 +1,6 @@
 #pragma once
 
 #include "pico/types.h"
-#include "types.h"
 #include <stdbool.h>
 
 typedef struct SwapchainNode SwapchainNode;

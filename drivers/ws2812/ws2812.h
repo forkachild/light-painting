@@ -2,9 +2,8 @@
 #define WS2812_PIO_H
 
 #include "buffer.h"
-#include "types.h"
 
-Result ws2812_init(uint count, uint pin);
+int ws2812_init(uint count, uint pin);
 
 bool ws2812_is_init();
 
@@ -16,4 +15,6 @@ void ws2812_stop_transmission();
 
 AsyncBuffer *ws2812_get_async_buffer();
 
-Result ws2812_deinit();
+void ws2812_deinit();
+
+#endif

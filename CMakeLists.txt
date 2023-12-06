@@ -13,9 +13,8 @@ add_compile_options(
     -Wno-maybe-uninitialized
 )
 
-project(LightPainting C CXX ASM)
-
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+project(LightPainting C CXX ASM)
 pico_sdk_init()
 
 add_subdirectory(common)
@@ -29,9 +28,12 @@ target_sources(LightPainting
 )
 
 target_link_libraries(LightPainting
-    common
     inmp441
     ws2812
+    canvas
+    swapchain
+    fft
+    status
 )
 
 pico_add_extra_outputs(LightPainting)

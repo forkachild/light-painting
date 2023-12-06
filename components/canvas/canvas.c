@@ -2,7 +2,6 @@
 
 #include "pico/stdlib.h"
 #include "pico/types.h"
-#include "types.h"
 #include <math.h>
 #include <memory.h>
 #include <stdlib.h>
@@ -72,14 +71,14 @@ static GRBAColor hsv_to_grba(float hue, float sat, float val) {
     return out;
 }
 
-Result canvas_init(Canvas *canvas, uint count) {
+int canvas_init(Canvas *canvas, uint count) {
     canvas->count = count;
     canvas->buffer = (uint32_t *)malloc(count * sizeof(uint32_t));
 
     if (!canvas->buffer)
-        return RESULT_MEM_ERR;
+        return -1;
 
-    return RESULT_OK;
+    return 0;
 }
 
 void canvas_clear(Canvas *canvas, GRBAColor color) {
@@ -161,7 +160,6 @@ void canvas_line_rainbow(Canvas *canvas, uint start, uint end, float phase) {
 
 uint32_t *canvas_get_grba_buffer(Canvas *canvas) { return canvas->buffer; }
 
-Result canvas_deinit(Canvas *canvas) {
+void canvas_deinit(Canvas *canvas) {
     free(canvas->buffer);
-    return RESULT_OK;
 }
