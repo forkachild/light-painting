@@ -171,9 +171,8 @@ int main() {
 
     setup();
 
-    Swapchain *audio_swapchain = NULL; // inmp441_get_swapchain();
-    Swapchain *led_swapchain = NULL;   // ws2812_get_swapchain();
-    SwapchainNode *node = NULL;
+    swapchain_context_t *audio_swapchain = NULL; // inmp441_get_swapchain();
+    swapchain_context_t *led_swapchain = NULL;   // ws2812_get_swapchain();
 
     inmp441_start_sampling();
     ws2812_start_transmission();
@@ -185,11 +184,8 @@ int main() {
 
     for (;;) {
         saved_irq = save_and_disable_interrupts();
-        node = swapchain_try_borrow_for_read(audio_swapchain);
+        const int32_t *int_samples = swapchain_get_right_buffer(audio_swapchain);
         restore_interrupts(saved_irq);
-
-        const int32_t *int_samples =
-            (int32_t *)swapchain_node_get_p_buffer(node);
 
         for (uint i = 0; i < SAMPLE_COUNT; i++) {
             int32_t sample = int_samples[i] & 0xFFFFFF00;
@@ -199,7 +195,7 @@ int main() {
         }
 
         saved_irq = save_and_disable_interrupts();
-        swapchain_return_after_read(audio_swapchain, node);
+        swapchain_flip_right(audio_swapchain);
         restore_interrupts(saved_irq);
 
         fft_rad2_dif(samples, twiddles, SAMPLE_COUNT);
@@ -208,15 +204,12 @@ int main() {
             canvas_point(&canvas, i, get_color_at(i));
 
         saved_irq = save_and_disable_interrupts();
-        node = swapchain_try_borrow_for_write(led_swapchain);
+        swapchain_flip_left(led_swapchain);
+        uint32_t *pixel_buffer = swapchain_get_left_buffer(led_swapchain);
         restore_interrupts(saved_irq);
 
-        memcpy(swapchain_node_get_p_buffer(node),
+        memcpy(pixel_buffer,
                canvas_get_grba_buffer(&canvas), LED_COUNT * sizeof(uint32_t));
-
-        saved_irq = save_and_disable_interrupts();
-        swapchain_return_after_write(led_swapchain, node);
-        restore_interrupts(saved_irq);
 
 #ifdef PROFILE_FPS
         frames++;

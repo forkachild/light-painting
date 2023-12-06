@@ -1,4 +1,4 @@
-project(status C CXX ASM)
+project(status C)
 add_library(status)
 
 target_sources(status

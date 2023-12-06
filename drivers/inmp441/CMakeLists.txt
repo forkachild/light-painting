@@ -11,9 +11,11 @@ target_sources(inmp441
 target_include_directories(inmp441 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(inmp441
-    buffer
+    swapchain
     pico_stdlib
     pico_mem_ops
     hardware_pio
     hardware_dma
+    hardware_gpio
+    hardware_clocks
 )

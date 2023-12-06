@@ -14,25 +14,23 @@ add_compile_options(
 )
 
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
-project(lightpainting C CXX ASM)
+project(light-painting C CXX ASM)
 pico_sdk_init()
 
-add_subdirectory(buffer)
 add_subdirectory(canvas)
 add_subdirectory(fft)
 add_subdirectory(status)
 add_subdirectory(swapchain)
-add_subdirectory(visualization)
 add_subdirectory(drivers)
 
-add_executable(lightpainting)
+add_executable(light-painting)
 
-target_sources(lightpainting
+target_sources(light-painting
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/main.c
 )
 
-target_link_libraries(lightpainting
+target_link_libraries(light-painting
     inmp441
     ws2812
     canvas
@@ -41,6 +39,6 @@ target_link_libraries(lightpainting
     status
 )
 
-pico_add_extra_outputs(lightpainting)
-pico_enable_stdio_usb(lightpainting ON)
-pico_enable_stdio_uart(lightpainting OFF)
+pico_add_extra_outputs(light-painting)
+pico_enable_stdio_usb(light-painting ON)
+pico_enable_stdio_uart(light-painting OFF)

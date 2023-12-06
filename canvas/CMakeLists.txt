@@ -9,6 +9,5 @@ target_sources(canvas
 target_include_directories(canvas PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(canvas
-    buffer
     pico_stdlib
 )

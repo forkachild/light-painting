@@ -11,7 +11,7 @@ target_sources(ws2812
 target_include_directories(ws2812 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(ws2812
-    buffer
+    swapchain
     pico_stdlib
     pico_mem_ops
     hardware_pio

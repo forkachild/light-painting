@@ -1,176 +1,70 @@
 #include "swapchain.h"
-#include "pico/types.h"
-#include <stdlib.h>
 
-/**
- * @brief Initialize the chain before use
- *
- * Must be called before calling any other swapchain_*()` methods.
- *
- * @param chain Pointer to an initialized swapchain in memory
- * @param buffer_size Size of buffer in each node
- * @param nodes Number of swappable nodes
- */
-void swapchain_init(Swapchain *chain, uint size, uint length) {
-    uint i;
+#define BUFFER_COUNT 3
 
-    void *p_mem = malloc(length * (sizeof(SwapchainNode) + size));
+#define LEFT_INDEX 0
+#define RIGHT_INDEX 1
+#define MID_INDEX 2
 
-    chain->cursor = p_mem;
-    chain->size = size;
-    chain->length = length;
+struct swapchain_context
+{
+    void *mem;
+    void *buffer_chain[BUFFER_COUNT];
+};
 
-    void *p_buffer_mem = p_mem + (length * sizeof(SwapchainNode));
+int swapchain_init(swapchain_context_t **context, size_t buffer_size)
+{
+    swapchain_context_t *c = malloc(sizeof(swapchain_context_t));
+    if (c == NULL)
+        return -1;
 
-    for (i = 0; i < length; i++) {
-        SwapchainNode *current = &chain->cursor[i];
-        SwapchainNode *next = &chain->cursor[(i + 1) % length];
-
-        current->borrowed = false;
-        current->buffer = p_buffer_mem;
-        current->next = next;
-        next->prev = current;
-
-        p_buffer_mem += size;
+    void *alloc = malloc(BUFFER_COUNT * buffer_size);
+    if (alloc == NULL)
+    {
+        free(c);
+        return -1;
     }
+
+    for (int i = 0; i < BUFFER_COUNT; i++)
+        c->buffer_chain[i] = alloc + i * buffer_size;
+
+    c->mem = alloc;
+    *context = c;
+
+    return 1;
 }
 
-/**
- * @brief Get the size of each buffer contained inside each node
- *
- * @param chain
- * @return uint
- */
-uint swapchain_get_size(const Swapchain *chain) { return chain->size; }
-
-/**
- * @brief Get the number of nodes in the swapchain
- *
- * @param chain
- * @return uint
- */
-uint swapchain_get_length(const Swapchain *chain) { return chain->length; }
-
-/**
- * @brief Borrow a Node for writing to it
- *
- *   O
- *  / \
- * O - O
- *
- *   O
- *  / \
- * O - X
- *
- *  Tries to borrow the node next to the cursor.
- *  Keeps cursor unchanged.
- *
- * @param chain
- * @return The borrowed node
- */
-SwapchainNode *swapchain_try_borrow_for_write(Swapchain *chain) {
-    SwapchainNode *node = chain->cursor->next;
-
-    if (node->borrowed)
-        return NULL;
-
-    node->borrowed = true;
-
-    return node;
+void *swapchain_get_left_buffer(swapchain_context_t *context)
+{
+    return context->buffer_chain[LEFT_INDEX];
 }
 
-/**
- * @brief Return a Node after writing
- *
- * Inserts the node next to the cursor.
- * Keeps cursor unchanged.
- *
- * @param chain
- * @param node
- */
-void swapchain_return_after_write(Swapchain *chain, SwapchainNode *node) {
-    node->borrowed = false;
-    chain->cursor = chain->cursor->next;
+void *swapchain_get_right_buffer(swapchain_context_t *context)
+{
+    return context->buffer_chain[RIGHT_INDEX];
 }
 
-/**
- * @brief Borrow a Node for reading
- *
- *   O
- *  / \
- * O - O
- *
- *   X
- *  / \
- * O - O
- *
- *   O
- *  / \
- * X - O
- *
- * Borrows the node at the cursor.
- * Moves cursor to the next node.
- *
- * @param chain
- * @return Node*
- */
-SwapchainNode *swapchain_try_borrow_for_read(Swapchain *chain) {
-    SwapchainNode *node = chain->cursor;
-
-    if (node->borrowed)
-        return NULL;
-
-    node->borrowed = true;
-    chain->cursor = node->next;
-
-    return node;
+void swapchain_flip_left(swapchain_context_t *context)
+{
+    swapchain_context_t *temp = context->buffer_chain[LEFT_INDEX];
+    context->buffer_chain[LEFT_INDEX] = context->buffer_chain[MID_INDEX];
+    context->buffer_chain[MID_INDEX] = temp;
 }
 
-/**
- * @brief Return a Node after reading
- *
- *   O
- *  / \
- * O - O
- *
- * Inserts the node next to the cursor.
- * Keeps cursor unchanged.
- *
- * @param chain
- * @param node
- */
-void swapchain_return_after_read(Swapchain __unused *chain,
-                                 SwapchainNode *node) {
-    node->borrowed = false;
+void swapchain_flip_right(swapchain_context_t *context)
+{
+    swapchain_context_t *temp = context->buffer_chain[RIGHT_INDEX];
+    context->buffer_chain[RIGHT_INDEX] = context->buffer_chain[MID_INDEX];
+    context->buffer_chain[MID_INDEX] = temp;
 }
 
-/**
- * @brief Destroy the chain
- *
- * Renders the chain useless after this call. Any
- * further calls to swapchain_*() methods after this call is undefined
- * behaviour.
- *
- * @param chain Pointer to the chain
- */
-void swapchain_deinit(Swapchain *chain) {
-    if (!chain)
+void swapchain_deinit(swapchain_context_t **context)
+{
+    if (*context == SWAPCHAIN_UNINIT)
         return;
 
-    // Unified memory model
-    free(chain->cursor);
+    free((**context).mem);
+    free(*context);
 
-    chain->cursor = NULL;
-    chain->length = 0;
-    chain->size = 0;
-}
-
-/**
- * @brief Returns the raw pointer in memory for the audio buffer
- *
- * @param frame The pointer to the initialized audio frame in memory
- * @return void* The pointer to the start of the buffer
- */
-void *swapchain_node_get_p_buffer(const SwapchainNode *node) {
-    return node->buffer;
+    *context = SWAPCHAIN_UNINIT;
 }
