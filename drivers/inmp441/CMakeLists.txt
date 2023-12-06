@@ -16,6 +16,4 @@ target_link_libraries(inmp441
     pico_mem_ops
     hardware_pio
     hardware_dma
-    hardware_gpio
-    hardware_clocks
 )

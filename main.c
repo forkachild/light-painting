@@ -1,6 +1,5 @@
 #include "canvas.h"
 #include "fft.h"
-#include "status.h"
 #include "swapchain.h"
 #include "inmp441.h"
 #include "ws2812.h"
