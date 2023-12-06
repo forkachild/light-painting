@@ -1,7 +1,5 @@
-#include "drivers/inmp441_pio.h"
-
-#include "components/buffer.h"
-#include "drivers/i2s_mono.pio.h"
+#include "buffer.h"
+#include "inmp441.pio.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
@@ -85,11 +83,11 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     pio = pio0;
 
     // Check if the program can be loaded in the pio
-    if (!pio_can_add_program(pio, &i2s_mono_program)) {
+    if (!pio_can_add_program(pio, &inmp441_program)) {
         // Try the next, PIO1
         pio = pio1;
 
-        if (!pio_can_add_program(pio, &i2s_mono_program)) {
+        if (!pio_can_add_program(pio, &inmp441_program)) {
             // Guard if not
             return RESULT_PIO_ERR;
         }
@@ -109,8 +107,8 @@ Result inmp441_init(uint samples, uint sck_pin, uint ws_pin, uint data_pin) {
     }
 
     // Load the PIO program in memory and initialize it
-    pio_offset = pio_add_program(pio, &i2s_mono_program);
-    i2s_mono_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
+    pio_offset = pio_add_program(pio, &inmp441_program);
+    inmp441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
 
     async_buffer_init(&buffer, samples * sizeof(uint32_t));
 
@@ -178,9 +176,9 @@ Result inmp441_deinit() {
     inmp441_stop_sampling();
     async_buffer_deinit(&driver.buffer);
 
-    i2s_mono_program_deinit(driver.pio, driver.pio_sm);
+    inmp441_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
-    pio_remove_program(driver.pio, &i2s_mono_program, driver.pio_offset);
+    pio_remove_program(driver.pio, &inmp441_program, driver.pio_offset);
 
     return RESULT_OK;
 }

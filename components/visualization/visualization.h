@@ -1,6 +1,6 @@
 #pragma once
 
-#include "components/buffer.h"
+#include "buffer.h"
 #include "types.h"
 #include <pico/types.h>
 

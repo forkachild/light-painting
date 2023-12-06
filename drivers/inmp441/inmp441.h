@@ -1,4 +1,5 @@
-#pragma once
+#ifndef INMP441_PIO_H
+#define INMP441_PIO_H
 
 #include "components/buffer.h"
 #include "types.h"
@@ -12,3 +13,5 @@ void inmp441_stop_sampling();
 AsyncBuffer *inmp441_get_async_buffer();
 
 Result inmp441_deinit();
+
+#endif

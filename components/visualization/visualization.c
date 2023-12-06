@@ -1,6 +1,6 @@
-#include "components/visualization.h"
+#include "visualization.h"
 
-#include "components/buffer.h"
+#include "buffer.h"
 #include <stdlib.h>
 
 void visualization_init(Visualization *v, size_t sample_count, size_t led_count,

@@ -1,4 +1,5 @@
-#pragma once
+#ifndef TYPES_H
+#define TYPES_H
 
 typedef enum {
     RESULT_OK,
@@ -15,3 +16,5 @@ typedef enum {
  * Input(Audio) -> InFilter(0) -> InFilter(1) -> ... -> FFT -> OutFilter(0) ->
  * OutFilter(1) -> ... -> Output(LED)
  */
+
+#endif

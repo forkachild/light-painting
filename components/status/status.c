@@ -1,4 +1,4 @@
-#include "components/status.h"
+#include "status.h"
 #include "pico/stdlib.h"
 #include "pico/types.h"
 

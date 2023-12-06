@@ -1,4 +1,4 @@
-#include "components/buffer.h"
+#include "buffer.h"
 
 #include <stdio.h>
 #include <stdlib.h>

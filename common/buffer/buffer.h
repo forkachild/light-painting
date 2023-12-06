@@ -39,7 +39,8 @@
  *
  * (PIO0) --> (DMA0) --> ( () ) --> (CPU0) --> ( () ) --> (DMA1) --> (PIO1)
  */
-#pragma once
+#ifndef BUFFER_H
+#define BUFFER_H
 
 #include <pico/types.h>
 
@@ -117,3 +118,5 @@ AsyncBufferNode *async_buffer_consumer_obtain(AsyncBuffer *buffer);
 void async_buffer_consumer_submit(AsyncBuffer *buffer, AsyncBufferNode *node);
 
 void async_buffer_deinit(AsyncBuffer *buffer);
+
+#endif

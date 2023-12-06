@@ -1,6 +1,7 @@
-#pragma once
+#ifndef WS2812_PIO_H
+#define WS2812_PIO_H
 
-#include "components/buffer.h"
+#include "buffer.h"
 #include "types.h"
 
 Result ws2812_init(uint count, uint pin);

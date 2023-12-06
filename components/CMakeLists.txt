@@ -1,0 +1,5 @@
+add_subdirectory(canvas)
+add_subdirectory(fft)
+add_subdirectory(status)
+add_subdirectory(swapchain)
+add_subdirectory(visualization)

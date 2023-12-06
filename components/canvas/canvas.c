@@ -1,4 +1,4 @@
-#include "components/canvas.h"
+#include "canvas.h"
 
 #include "pico/stdlib.h"
 #include "pico/types.h"
