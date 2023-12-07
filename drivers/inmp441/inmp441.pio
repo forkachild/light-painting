@@ -8,15 +8,17 @@
 .define public bits_in_per_word    32
 
     set x, 30       side 0b00   ; Switch to left channel
+                                ; Whenever WS changes, SCK must go from 1 to 0
 left:
     in pins, 1      side 0b01   ; Sample bits 0..30
-    jmp x--, left   side 0b00   ; Loop through first 31 bits
+    jmp x--, left   side 0b00   ; Loop
     in pins, 1      side 0b01   ; Sample bit 31 (last one)
 
     set x, 30       side 0b10   ; Switch to right channel
+                                ; Whenever WS changes, SCK must go from 1 to 0
 right:
     in pins, 1      side 0b11   ; Sample bits 0..30
-    jmp x--, right  side 0b10   ; Loop through first 31 bits
+    jmp x--, right  side 0b10   ; Loop
     in pins, 1      side 0b11   ; Sample bit 31
 
 % c-sdk {

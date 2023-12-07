@@ -1,9 +1,21 @@
 #include "fft.h"
-#include "pico/stdlib.h"
+
 #include <complex.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+struct fft_context {
+    unsigned int *reversed_indices;
+    float complex *twiddles;
+    size_t count;
+};
+
+struct fft_context_d {
+    unsigned int *reversed_indices;
+    double complex *twiddles;
+    size_t count;
+};
 
 /**
  * @brief Ultra fast log base-2 of only 2^n numbers. For others, the
@@ -13,17 +25,20 @@
  * right until we find it, and that's log2N
  *
  * @param N The input. *MUST BE A POWER OF 2*
- * @return uint The log base-2 result
+ * @return The log base-2 result, -1 if not a power of two
  */
-static inline uint log2N(uint N) {
-    uint value, n;
+static inline int log2N(unsigned int N) {
+    int value, n;
 
     // Keep shifting right until we find a '1' at the LSB
     // and that's when we know we hit the jackpot!
     for (value = 0, n = N; (n & 0b1) == 0; n >>= 1, value++)
         ;
 
-    return value;
+    if (n == 1)
+        return value;
+
+    return -1;
 }
 
 /**
@@ -31,10 +46,11 @@ static inline uint log2N(uint N) {
  *
  * @param N Value to be bit-reversed
  * @param bit_depth Number of bits to be reversed
- * @return uint Bit-reversed number
+ * @return unsigned int Bit-reversed number
  */
-static inline uint reverse_bits(uint N, uint bit_depth) {
-    uint output, i;
+static inline unsigned int reverse_bits(unsigned int N,
+                                        unsigned int bit_depth) {
+    unsigned int output, i;
 
     // Simple, left shift one, right shift the other, bleh!
     for (output = 0, i = 0; i < bit_depth; i++, N >>= 1)
@@ -43,8 +59,9 @@ static inline uint reverse_bits(uint N, uint bit_depth) {
     return output;
 }
 
-void fill_reversed_indices(uint *reversed_indices, uint N) {
-    uint bit_depth, i;
+static void fill_reversed_indices(unsigned int *reversed_indices,
+                                  unsigned int N) {
+    unsigned int bit_depth, i;
 
     // Number of bits required
     bit_depth = log2N(N);
@@ -53,12 +70,9 @@ void fill_reversed_indices(uint *reversed_indices, uint N) {
         reversed_indices[i] = reverse_bits(i, bit_depth);
 }
 
-void fill_twiddles(float complex *twiddles, uint N) {
+static void fill_twiddles(float complex *twiddles, unsigned int N) {
     float angle_per_sample;
-    uint halfN, i;
-
-    // Mr. Clean
-    halfN = N / 2;
+    unsigned int i;
 
     // -2pi/N, constant, reducing the calculations
     angle_per_sample = -2.0f * (float)M_PI / N;
@@ -66,16 +80,13 @@ void fill_twiddles(float complex *twiddles, uint N) {
     // Cache the twiddle factors
     // Compromise some space for HUGE performance gain
     // Cache locality baby!
-    for (i = 0; i < halfN; i++)
+    for (i = 0; i < N; i++)
         twiddles[i] = cexp(angle_per_sample * i * I);
 }
 
-void fill_twiddles_d(double complex *twiddles, uint N) {
+static void fill_twiddles_d(double complex *twiddles, unsigned int N) {
     double angle_per_sample;
-    uint halfN, i;
-
-    // Mr. Clean
-    halfN = N / 2;
+    unsigned int i;
 
     // -2pi/N, constant, reducing the calculations
     angle_per_sample = -2.0 * M_PI / N;
@@ -83,22 +94,98 @@ void fill_twiddles_d(double complex *twiddles, uint N) {
     // Cache the twiddle factors
     // Compromise some space for HUGE performance gain
     // Cache locality baby!
-    for (i = 0; i < halfN; i++)
+    for (i = 0; i < N; i++)
         twiddles[i] = cexp(angle_per_sample * i * I);
 }
 
-void fft_rad2_dit(float complex *X, const float complex *twiddles,
-                  const uint *reversed_indices, uint N) {
-    uint halfN, set_count, ops_per_set, set, start, butterfly,
+int fft_init(fft_context_t **context, unsigned int count) {
+    fft_context_t *c;
+    unsigned int *reversed_indices;
+    float complex *twiddles;
+
+    if (*context != FFT_UNINIT)
+        return -1;
+
+    c = (fft_context_t *)malloc(sizeof(fft_context_t));
+
+    if (c == NULL)
+        return -1;
+
+    reversed_indices = (unsigned int *)malloc(count * sizeof(unsigned int));
+
+    if (reversed_indices == NULL) {
+        free(c);
+        return -1;
+    }
+
+    twiddles = (float complex *)malloc((count / 2) * sizeof(float complex));
+
+    if (twiddles == NULL) {
+        free(c);
+        free(reversed_indices);
+        return -1;
+    }
+
+    fill_reversed_indices(reversed_indices, count);
+    fill_twiddles(twiddles, count / 2);
+
+    c->count = count;
+    c->reversed_indices = reversed_indices;
+    c->twiddles = twiddles;
+
+    return 1;
+}
+
+int fft_init_d(fft_context_d_t **context, unsigned int count) {
+    fft_context_d_t *c;
+    unsigned int *reversed_indices;
+    double complex *twiddles;
+
+    if (*context != FFT_UNINIT_D)
+        return -1;
+
+    c = (fft_context_d_t *)malloc(sizeof(fft_context_d_t));
+
+    if (c == NULL)
+        return -1;
+
+    reversed_indices = (unsigned int *)malloc(count * sizeof(unsigned int));
+
+    if (reversed_indices == NULL) {
+        free(c);
+        return -1;
+    }
+
+    twiddles = (double complex *)malloc((count / 2) * sizeof(double complex));
+
+    if (twiddles == NULL) {
+        free(c);
+        free(reversed_indices);
+        return -1;
+    }
+
+    fill_reversed_indices(reversed_indices, count);
+    fill_twiddles_d(twiddles, count / 2);
+
+    c->count = count;
+    c->reversed_indices = reversed_indices;
+    c->twiddles = twiddles;
+
+    return 1;
+}
+
+void fft_rad2_dit(fft_context_t *context, float complex *samples,
+                  float *frequency_bins) {
+    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     float complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
-    if (X == NULL || reversed_indices == NULL || twiddles == NULL)
+    if (samples == NULL)
         return;
 
     // Mr. Clean
-    halfN = N / 2;
+    halfN = context->count / 2;
 
     // Perform the stages
     // i is the number of sets to perform
@@ -117,36 +204,46 @@ void fft_rad2_dit(float complex *X, const float complex *twiddles,
 
             // Loop over butterflies
             for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = reversed_indices[start + butterfly];
+                butterfly_top_idx =
+                    context->reversed_indices[start + butterfly];
                 butterfly_bottom_idx =
-                    reversed_indices[start + butterfly + ops_per_set];
+                    context->reversed_indices[start + butterfly + ops_per_set];
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
-                twiddle = twiddles[butterfly * set_count]; // Cache hit baby!
-                butterfly_top = X[butterfly_top_idx];
-                butterfly_bottom = twiddle * X[butterfly_bottom_idx];
+                twiddle =
+                    context->twiddles[butterfly * set_count]; // Cache hit baby!
+                butterfly_top = samples[butterfly_top_idx];
+                butterfly_bottom = twiddle * samples[butterfly_bottom_idx];
 
                 // Finally the butterfly
-                X[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                X[butterfly_bottom_idx] = butterfly_top - butterfly_bottom;
+                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
+                samples[butterfly_bottom_idx] =
+                    butterfly_top - butterfly_bottom;
             }
+        }
+    }
+
+    if (frequency_bins != NULL) {
+        for (size_t i = 0; i < halfN; i++) {
+            float complex sample = samples[i];
+            frequency_bins[i] = cabsf(sample) / halfN;
         }
     }
 }
 
-void fft_rad2_dit_d(double complex *X, const double complex *twiddles,
-                    const uint *reversed_indices, uint N) {
-    uint halfN, set_count, ops_per_set, set, start, butterfly,
+void fft_rad2_dit_d(fft_context_d_t *context, double complex *samples,
+                    double *frequency_bins) {
+    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     double complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
-    if (X == NULL || reversed_indices == NULL || twiddles == NULL)
+    if (samples == NULL)
         return;
 
     // Mr. Clean
-    halfN = N / 2;
+    halfN = context->count / 2;
 
     // Perform the stages
     // i is the number of sets to perform
@@ -165,35 +262,46 @@ void fft_rad2_dit_d(double complex *X, const double complex *twiddles,
 
             // Loop over butterflies
             for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = reversed_indices[start + butterfly];
+                butterfly_top_idx =
+                    context->reversed_indices[start + butterfly];
                 butterfly_bottom_idx =
-                    reversed_indices[start + butterfly + ops_per_set];
+                    context->reversed_indices[start + butterfly + ops_per_set];
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
-                twiddle = twiddles[butterfly * set_count]; // Cache hit baby!
-                butterfly_top = X[butterfly_top_idx];
-                butterfly_bottom = twiddle * X[butterfly_bottom_idx];
+                twiddle =
+                    context->twiddles[butterfly * set_count]; // Cache hit baby!
+                butterfly_top = samples[butterfly_top_idx];
+                butterfly_bottom = twiddle * samples[butterfly_bottom_idx];
 
                 // Finally the butterfly
-                X[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                X[butterfly_bottom_idx] = butterfly_top - butterfly_bottom;
+                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
+                samples[butterfly_bottom_idx] =
+                    butterfly_top - butterfly_bottom;
             }
+        }
+    }
+
+    if (frequency_bins != NULL) {
+        for (size_t i = 0; i < halfN; i++) {
+            double complex sample = samples[i];
+            frequency_bins[i] = cabs(sample) / halfN;
         }
     }
 }
 
-void fft_rad2_dif(float complex *X, const float complex *twiddles, uint N) {
-    uint halfN, set_count, ops_per_set, set, start, butterfly,
+void fft_rad2_dif(fft_context_t *context, float complex *samples,
+                  float *frequency_bins) {
+    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     float complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
-    if (X == NULL || twiddles == NULL)
+    if (samples == NULL)
         return;
 
     // Mr. Clean!
-    halfN = N / 2;
+    halfN = context->count / 2;
 
     // Perform the stages
     // i is the number of sets to perform
@@ -217,30 +325,38 @@ void fft_rad2_dif(float complex *X, const float complex *twiddles, uint N) {
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
                 // Cache hit baby!
-                twiddle = twiddles[butterfly * set_count];
-                butterfly_top = X[butterfly_top_idx];
-                butterfly_bottom = X[butterfly_bottom_idx];
+                twiddle = context->twiddles[butterfly * set_count];
+                butterfly_top = samples[butterfly_top_idx];
+                butterfly_bottom = samples[butterfly_bottom_idx];
 
                 // Finally the butterfly
-                X[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                X[butterfly_bottom_idx] =
+                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
+                samples[butterfly_bottom_idx] =
                     twiddle * (butterfly_top - butterfly_bottom);
             }
+        }
+    }
+
+    if (frequency_bins != NULL) {
+        for (size_t i = 0; i < halfN; i++) {
+            float complex sample = samples[context->reversed_indices[i]];
+            frequency_bins[i] = cabsf(sample) / halfN;
         }
     }
 }
 
-void fft_rad2_dif_d(double complex *X, const double complex *twiddles, uint N) {
-    uint halfN, set_count, ops_per_set, set, start, butterfly,
+void fft_rad2_dif_d(fft_context_d_t *context, double complex *samples,
+                    double *frequency_bins) {
+    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     double complex twiddle, butterfly_top, butterfly_bottom;
 
     // Don't mess with me
-    if (X == NULL || twiddles == NULL)
+    if (samples == NULL)
         return;
 
     // Mr. Clean
-    halfN = N / 2;
+    halfN = context->count / 2;
 
     // Perform the stages
     // i is the number of sets to perform
@@ -264,15 +380,48 @@ void fft_rad2_dif_d(double complex *X, const double complex *twiddles, uint N) {
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
                 // Cache hit baby!
-                twiddle = twiddles[butterfly * set_count];
-                butterfly_top = X[butterfly_top_idx];
-                butterfly_bottom = X[butterfly_bottom_idx];
+                twiddle = context->twiddles[butterfly * set_count];
+                butterfly_top = samples[butterfly_top_idx];
+                butterfly_bottom = samples[butterfly_bottom_idx];
 
                 // Finally the butterfly
-                X[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                X[butterfly_bottom_idx] =
+                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
+                samples[butterfly_bottom_idx] =
                     twiddle * (butterfly_top - butterfly_bottom);
             }
         }
     }
+
+    if (frequency_bins != NULL) {
+        for (size_t i = 0; i < halfN; i++) {
+            double complex sample = samples[context->reversed_indices[i]];
+            frequency_bins[i] = cabs(sample) / halfN;
+        }
+    }
+}
+
+void fft_deinit(fft_context_t **context) {
+    if (*context == FFT_UNINIT)
+        return;
+
+    fft_context_t *c = *context;
+
+    free(c->twiddles);
+    free(c->reversed_indices);
+    free(c);
+
+    *context = FFT_UNINIT;
+}
+
+void fft_deinit_d(fft_context_d_t **context) {
+    if (*context == FFT_UNINIT_D)
+        return;
+
+    fft_context_d_t *c = *context;
+
+    free(c->twiddles);
+    free(c->reversed_indices);
+    free(c);
+
+    *context = FFT_UNINIT_D;
 }

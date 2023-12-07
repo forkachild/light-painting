@@ -2,8 +2,14 @@
     "C_Cpp.clang_format_style": "{ BasedOnStyle: LLVM, UseTab: Never, IndentWidth: 4, TabWidth: 4 }",
     "editor.detectIndentation": true,
     "editor.tabSize": 4,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true,
+        "source.organizeImports": true,
+    },
+    "editor.formatOnSave": true,
     "files.associations": {
         "*.css": "tailwindcss",
-        "types.h": "c"
+        "fft.h": "c",
+        "visualization.h": "c"
     },
 }

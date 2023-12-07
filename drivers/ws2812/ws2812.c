@@ -1,9 +1,9 @@
 #include "ws2812.h"
-#include "swapchain.h"
-#include "ws2812.pio.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
+#include "swapchain.h"
+#include "ws2812.pio.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -40,7 +40,7 @@ static WS2812PIODriver driver = {
 };
 
 static void dma_irq_handler() {
-    swapchain_flip_right(driver.swapchain);
+    swapchain_swap_right_side(driver.swapchain);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     pio_sm_exec(driver.pio, driver.pio_sm,
                 pio_encode_jmp(driver.pio_offset + ws2812_offset_sync));
@@ -134,7 +134,13 @@ void ws2812_stop_transmission() {
     driver.is_transmitting = false;
 }
 
-void *ws2812_get_async_buffer() { return swapchain_get_left_buffer(driver.swapchain); }
+size_t ws2812_get_pixel_count() { return driver.count; }
+
+void *ws2812_get_pixel_buffer() {
+    return swapchain_get_left_buffer(driver.swapchain);
+}
+
+void ws2812_swap_buffers() { swapchain_swap_left_side(driver.swapchain); }
 
 void ws2812_deinit() {
     if (!driver.is_init)

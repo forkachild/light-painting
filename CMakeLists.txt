@@ -6,11 +6,19 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_compile_options(
     -Wall
-    -Werror
     -Wextra
     -Wno-format
     -Wno-unused-function
     -Wno-maybe-uninitialized
+    -Wpointer-arith
+    -Wcast-align
+    -flto
+)
+
+add_link_options(
+    -Wall
+    -Wextra
+    -flto
 )
 
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
@@ -21,20 +29,24 @@ add_subdirectory(canvas)
 add_subdirectory(fft)
 add_subdirectory(swapchain)
 add_subdirectory(drivers)
+add_subdirectory(visualization)
+add_subdirectory(audio)
 
 add_executable(light-painting)
-
 target_sources(light-painting
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/main.c
 )
-
 target_link_libraries(light-painting
-    inmp441
-    ws2812
-    canvas
-    swapchain
-    fft
+    PRIVATE
+        inmp441
+        ws2812
+        canvas
+        audio
+        swapchain
+        fft
+        visualization
+        pico_stdlib
 )
 
 pico_add_extra_outputs(light-painting)
