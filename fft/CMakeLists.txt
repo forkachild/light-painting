@@ -6,8 +6,9 @@ target_sources(fft
         ${CMAKE_CURRENT_SOURCE_DIR}/fft.c
 )
 
-target_include_directories(fft PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-
-target_link_libraries(fft
-    pico_stdlib
+target_include_directories(fft
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
 )
+
+target_link_libraries(fft pico_stdlib)

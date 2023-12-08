@@ -4,24 +4,28 @@
 #include <complex.h>
 #include <stdint.h>
 
-#define FFT_UNINIT ((fft_context_t *)NULL)
-#define FFT_UNINIT_D ((fft_context_d_t *)NULL)
+typedef struct {
+    unsigned int *reversed_indices;
+    float complex *twiddles;
+    size_t count;
+} fft_t;
 
-typedef struct fft_context fft_context_t;
-typedef struct fft_context_d fft_context_d_t;
+typedef struct {
+    unsigned int *reversed_indices;
+    double complex *twiddles;
+    size_t count;
+} fft_d_t;
 
-int fft_init(fft_context_t **context, unsigned int count);
-int fft_init_d(fft_context_d_t **context, unsigned int count);
-void fft_rad2_dit(fft_context_t *context, float complex *samples,
-                  float *frequency_bins);
-void fft_rad2_dit_d(fft_context_d_t *context, double complex *samples,
+int fft_init(fft_t *this, size_t count);
+void fft_rad2_dit(fft_t *this, float complex *samples, float *frequency_bins);
+void fft_rad2_dif(fft_t *this, float complex *samples, float *frequency_bins);
+void fft_deinit(fft_t *this);
+
+int fft_init_d(fft_d_t *this, size_t count);
+void fft_rad2_dit_d(fft_d_t *this, double complex *samples,
                     double *frequency_bins);
-void fft_rad2_dif(fft_context_t *context, float complex *samples,
-                  float *frequency_bins);
-void fft_rad2_dif_d(fft_context_d_t *context, double complex *samples,
+void fft_rad2_dif_d(fft_d_t *this, double complex *samples,
                     double *frequency_bins);
-const float *fft_get_frequency_bins(fft_context_t *context);
-void fft_deinit(fft_context_t **context);
-void fft_deinit_d(fft_context_d_t **context);
+void fft_deinit_d(fft_d_t *this);
 
 #endif

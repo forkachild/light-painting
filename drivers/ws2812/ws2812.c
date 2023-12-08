@@ -24,7 +24,7 @@ typedef struct {
     uint dma_channel;
 
     // The swapchain to use
-    swapchain_context_t *swapchain;
+    swapchain_t *swapchain;
 
     // Whether the driver is initialized
     bool is_init;
@@ -34,7 +34,7 @@ typedef struct {
 } ws2812_t;
 
 static ws2812_t driver = {
-    .swapchain = SWAPCHAIN_UNINIT,
+    .swapchain = NULL,
     .is_init = false,
     .is_transmitting = false,
 };
@@ -52,7 +52,7 @@ size_t ws2812_required_buffer_size(size_t led_count) {
     return led_count * sizeof(uint32_t);
 }
 
-int ws2812_init(swapchain_context_t *swapchain, size_t count, uint pin) {
+int ws2812_init(swapchain_t *swapchain, size_t count, uint pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -153,7 +153,7 @@ void ws2812_deinit() {
     pio_remove_program(driver.pio, &ws2812_program, driver.pio_offset);
 
     driver = (ws2812_t){
-        .swapchain = SWAPCHAIN_UNINIT,
+        .swapchain = NULL,
         .is_init = false,
         .is_transmitting = false,
     };

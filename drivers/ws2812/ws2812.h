@@ -6,7 +6,7 @@
 
 size_t ws2812_required_buffer_size(size_t led_count);
 
-int ws2812_init(swapchain_context_t *swapchain, size_t count, uint pin);
+int ws2812_init(swapchain_t *swapchain, size_t count, uint pin);
 
 size_t ws2812_get_pixel_count();
 

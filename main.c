@@ -18,7 +18,7 @@
 
 #define LED_DATA_PIN 13
 
-static argb_color_t magnitude_to_color(float magnitude) {
+static color_grba_t magnitude_to_color(float magnitude) {
     if (magnitude < 0.f) {
         magnitude = 0.f;
     }
@@ -27,7 +27,7 @@ static argb_color_t magnitude_to_color(float magnitude) {
         magnitude = 1.f;
     }
 
-    return argb_color_from_rgb(0xFF, 0xFF, 0xFF);
+    return color_grba_from_rgb(0xFF, 0xFF, 0xFF);
 }
 
 static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
@@ -43,7 +43,7 @@ static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
             float index_f = index - index_i;
 
             pixel_buffer[pixel] =
-                argb_color_add(
+                color_grba_add(
                     magnitude_to_color((1.f - index_f) *
                                        frequency_bins[index_i]),
                     magnitude_to_color(index_f * frequency_bins[index_i + 1]))
@@ -63,9 +63,9 @@ static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
 }
 
 int main() {
-    audio_context_t *audio;
-    swapchain_context_t *audio_swapchain;
-    swapchain_context_t *led_swapchain;
+    audio_t audio;
+    swapchain_t audio_swapchain;
+    swapchain_t led_swapchain;
 
     stdio_usb_init();
 
@@ -81,13 +81,13 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    if (!inmp441_init(audio_swapchain, AUDIO_SAMPLE_COUNT, MIC_SCK_PIN,
+    if (!inmp441_init(&audio_swapchain, AUDIO_SAMPLE_COUNT, MIC_SCK_PIN,
                       MIC_WS_PIN, MIC_DATA_PIN)) {
         printf("Could not initialize INMP441 driver");
         return EXIT_FAILURE;
     }
 
-    if (!ws2812_init(led_swapchain, LED_COUNT, LED_DATA_PIN)) {
+    if (!ws2812_init(&led_swapchain, LED_COUNT, LED_DATA_PIN)) {
         printf("Could not initialize WS2812 driver");
         return EXIT_FAILURE;
     }
@@ -101,19 +101,20 @@ int main() {
     ws2812_start_transmission();
 
     while (true) {
-        swapchain_consumer_swap(audio_swapchain);
+        swapchain_consumer_swap(&audio_swapchain);
 
-        audio_feed_inmp441(audio, swapchain_consumer_buffer(audio_swapchain));
-        audio_envelope(audio);
-        audio_gain(audio, 1.5f);
-        audio_fft(audio);
+        audio_feed_inmp441(&audio, swapchain_consumer_buffer(&audio_swapchain));
+        audio_envelope(&audio);
+        audio_gain(&audio, 1.5f);
+        audio_fft(&audio);
 
         visualizer_map_frequency_bins_to_pixels(
-            audio_get_frequency_bins(audio),
-            audio_get_frequency_bin_count(audio),
-            swapchain_producer_buffer(led_swapchain), ws2812_get_pixel_count());
+            audio_get_frequency_bins(&audio),
+            audio_get_frequency_bin_count(&audio),
+            swapchain_producer_buffer(&led_swapchain),
+            ws2812_get_pixel_count());
 
-        swapchain_producer_swap(led_swapchain);
+        swapchain_producer_swap(&led_swapchain);
     }
 
     return EXIT_SUCCESS;

@@ -6,8 +6,8 @@
 
 size_t inmp441_required_buffer_size(size_t sample_count);
 
-int inmp441_init(swapchain_context_t *swapchain, size_t sample_count,
-                 uint sck_pin, uint ws_pin, uint data_pin);
+int inmp441_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
+                 uint ws_pin, uint data_pin);
 
 size_t inmp441_sample_count();
 

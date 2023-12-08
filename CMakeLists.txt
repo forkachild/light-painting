@@ -4,9 +4,14 @@ set(CMAKE_C_STANDARD 17)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
+
+project(light-painting C CXX ASM)
+
 add_compile_options(
     -Wall
     -Wextra
+    -Werror
     -Wno-format
     -Wno-unused-function
     -Wno-maybe-uninitialized
@@ -17,6 +22,7 @@ add_compile_options(
 add_link_options(
     -Wall
     -Wextra
+    -Werror
     -flto
 )
 
@@ -25,8 +31,6 @@ add_definitions(
     -DSWAPCHAIN_CRITICAL_SECTION
 )
 
-include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
-project(light-painting C CXX ASM)
 pico_sdk_init()
 
 add_subdirectory(util)

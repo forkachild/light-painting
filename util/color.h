@@ -3,16 +3,16 @@
 
 #include <stdlib.h>
 
-typedef union argb_color {
+typedef union color_grba {
     struct {
         uint8_t g, r, b, a;
-    } channels;
+    } grba;
     uint32_t value;
-} argb_color_t;
+} color_grba_t;
 
-static argb_color_t argb_color_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
-    return (argb_color_t){
-        .channels =
+static color_grba_t color_grba_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
+    return (color_grba_t){
+        .grba =
             {
                 .r = r,
                 .g = g,
@@ -22,11 +22,11 @@ static argb_color_t argb_color_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
     };
 }
 
-static argb_color_t argb_color_from_hsv(uint8_t h, uint8_t s, uint8_t v) {
+static color_grba_t color_grba_from_hsv(uint8_t h, uint8_t s, uint8_t v) {
     uint8_t region, remainder, p, q, t;
 
     if (s == 0)
-        return argb_color_from_rgb(v, v, v);
+        return color_grba_from_rgb(v, v, v);
 
     region = h / 43;
     remainder = (h - (region * 43)) * 6;
@@ -37,21 +37,21 @@ static argb_color_t argb_color_from_hsv(uint8_t h, uint8_t s, uint8_t v) {
 
     switch (region) {
     case 0:
-        return argb_color_from_rgb(v, t, p);
+        return color_grba_from_rgb(v, t, p);
     case 1:
-        return argb_color_from_rgb(q, v, p);
+        return color_grba_from_rgb(q, v, p);
     case 2:
-        return argb_color_from_rgb(p, v, t);
+        return color_grba_from_rgb(p, v, t);
     case 3:
-        return argb_color_from_rgb(p, q, v);
+        return color_grba_from_rgb(p, q, v);
     case 4:
-        return argb_color_from_rgb(t, p, v);
+        return color_grba_from_rgb(t, p, v);
     default:
-        return argb_color_from_rgb(v, p, q);
+        return color_grba_from_rgb(v, p, q);
     }
 }
 
-static argb_color_t argb_color_from_hsv_f(float h, float s, float v) {
+static color_grba_t color_grba_from_hsv_f(float h, float s, float v) {
     float hh, p, q, t, ff, r, g, b;
     int i;
 
@@ -108,17 +108,17 @@ static argb_color_t argb_color_from_hsv_f(float h, float s, float v) {
         }
     }
 
-    return argb_color_from_rgb((uint8_t)(r * 255), (uint8_t)(g * 255),
+    return color_grba_from_rgb((uint8_t)(r * 255), (uint8_t)(g * 255),
                                (uint8_t)(b * 255));
 }
 
-static argb_color_t argb_color_add(argb_color_t left, argb_color_t right) {
-    return (argb_color_t){
-        .channels =
+static color_grba_t color_grba_add(color_grba_t left, color_grba_t right) {
+    return (color_grba_t){
+        .grba =
             {
-                .r = left.channels.r + right.channels.r,
-                .g = left.channels.g + right.channels.g,
-                .b = left.channels.b + right.channels.b,
+                .r = left.grba.r + right.grba.r,
+                .g = left.grba.g + right.grba.g,
+                .b = left.grba.b + right.grba.b,
                 .a = 0,
             },
     };

@@ -36,7 +36,7 @@ typedef struct {
     uint data_pin;
 
     // Swapchain used to circle the buffers
-    swapchain_context_t *swapchain;
+    swapchain_t *swapchain;
 
     // Whether the driver is initialized
     bool is_init;
@@ -46,7 +46,7 @@ typedef struct {
 } inmp441_t;
 
 static inmp441_t driver = {
-    .swapchain = SWAPCHAIN_UNINIT,
+    .swapchain = NULL,
     .is_init = false,
     .is_sampling = false,
 };
@@ -62,8 +62,8 @@ size_t inmp441_required_buffer_size(size_t sample_count) {
     return sample_count * sizeof(uint32_t);
 }
 
-int inmp441_init(swapchain_context_t *swapchain, size_t sample_count,
-                 uint sck_pin, uint ws_pin, uint data_pin) {
+int inmp441_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
+                 uint ws_pin, uint data_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -144,7 +144,7 @@ int inmp441_init(swapchain_context_t *swapchain, size_t sample_count,
 size_t inmp441_sample_count() { return driver.sample_count; }
 
 void inmp441_start_sampling() {
-    if (driver.is_sampling)
+    if (!driver.is_init || driver.is_sampling)
         return;
 
     dma_channel_set_write_addr(
@@ -154,7 +154,7 @@ void inmp441_start_sampling() {
 }
 
 void inmp441_stop_sampling() {
-    if (!driver.is_sampling)
+    if (!driver.is_init || !driver.is_sampling)
         return;
 
     dma_channel_set_irq0_enabled(driver.dma_channel, false);
@@ -177,7 +177,7 @@ void inmp441_deinit() {
     pio_remove_program(driver.pio, &inmp441_program, driver.pio_offset);
 
     driver = (inmp441_t){
-        .swapchain = SWAPCHAIN_UNINIT,
+        .swapchain = NULL,
         .is_init = false,
         .is_sampling = false,
     };
