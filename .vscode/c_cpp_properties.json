@@ -2,16 +2,9 @@
     "configurations": [
         {
             "name": "LightPainting",
-            "includePath": [
-                "${workspaceFolder}/**",
-                "${PICO_SDK_PATH}/**"
-            ],
-            "defines": [],
-            "macFrameworkPath": [],
-            "compilerPath": "/usr/local/bin/arm-none-eabi-gcc",
             "cStandard": "gnu17",
             "cppStandard": "gnu++14",
-            "intelliSenseMode": "macos-gcc-arm",
+            "intelliSenseMode": "gcc-arm",
             "compileCommands": "${workspaceFolder}/build/compile_commands.json"
         }
     ],

@@ -1,9 +1,15 @@
 {
-    "files.associations": {
-        "**/*.h": "c",
-        "random": "c"
-    },
     "C_Cpp.clang_format_style": "{ BasedOnStyle: LLVM, UseTab: Never, IndentWidth: 4, TabWidth: 4 }",
     "editor.detectIndentation": true,
-    "editor.tabSize": 4
+    "editor.tabSize": 4,
+    "editor.codeActionsOnSave": {
+        "source.fixAll": true,
+        "source.organizeImports": true,
+    },
+    "editor.formatOnSave": true,
+    "files.associations": {
+        "*.css": "tailwindcss",
+        "fft.h": "c",
+        "visualization.h": "c"
+    },
 }

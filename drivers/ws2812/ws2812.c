@@ -1,15 +1,15 @@
-#include "ws2812_pio.h"
+#include "ws2812.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 #include "pico/stdlib.h"
-#include "pio/ws2812_driver.pio.h"
-#include "utils.h"
+#include "swapchain.h"
+#include "ws2812.pio.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 typedef struct {
     // Number of LEDs
-    uint count;
+    size_t count;
 
     // The PIO block
     PIO pio;
@@ -24,54 +24,42 @@ typedef struct {
     uint dma_channel;
 
     // The swapchain to use
-    Swapchain swapchain;
-
-    // The node of the swapchain read last
-    SwapchainNode *read_node;
+    swapchain_t *swapchain;
 
     // Whether the driver is initialized
     bool is_init;
 
     // Whether the driver is transmitting
     bool is_transmitting;
-} WS2812PIODriver;
+} ws2812_t;
 
-static WS2812PIODriver driver = {
-    .read_node = NULL,
+static ws2812_t driver = {
+    .swapchain = NULL,
     .is_init = false,
     .is_transmitting = false,
 };
 
-static uint frames = 0;
-static absolute_time_t last_frame_time = {0};
-
 static void dma_irq_handler() {
-    swapchain_return_after_read(&driver.swapchain, driver.read_node);
-    driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
+    swapchain_consumer_swap(driver.swapchain);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     pio_sm_exec(driver.pio, driver.pio_sm,
                 pio_encode_jmp(driver.pio_offset + ws2812_offset_sync));
-
-    frames++;
-    absolute_time_t time_now = get_absolute_time();
-    if (to_ms_since_boot(time_now) - to_ms_since_boot(last_frame_time) > 1000) {
-        last_frame_time = time_now;
-        frames = 0;
-    }
-
-    dma_channel_set_read_addr(driver.dma_channel,
-                              swapchain_node_get_buffer_ptr(driver.read_node),
-                              true);
+    dma_channel_set_read_addr(
+        driver.dma_channel, swapchain_consumer_buffer(driver.swapchain), true);
 }
 
-Result ws2812_init(uint count, uint pin) {
+size_t ws2812_required_buffer_size(size_t led_count) {
+    return led_count * sizeof(uint32_t);
+}
+
+int ws2812_init(swapchain_t *swapchain, size_t count, uint pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
     dma_channel_config dma_config;
 
     if (driver.is_init)
-        return RESULT_ALREADY_INIT;
+        return -1;
 
     // Start with PIO0
     pio = pio0;
@@ -81,18 +69,20 @@ Result ws2812_init(uint count, uint pin) {
         // Try the next, PIO1
         pio = pio1;
 
-        if (!pio_can_add_program(pio, &ws2812_program))
+        if (!pio_can_add_program(pio, &ws2812_program)) {
             // Guard if not
-            return RESULT_PIO_ERR;
+            return -1;
+        }
     }
 
     // Try to grab an unused State Machine
-    if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1)
-        return RESULT_PIO_ERR;
+    if ((pio_sm = pio_claim_unused_sm(pio, false)) == -1) {
+        return -1;
+    }
 
     if ((dma_channel = dma_claim_unused_channel(false)) == -1) {
         pio_sm_unclaim(pio, pio_sm);
-        return RESULT_DMA_ERR;
+        return -1;
     }
 
     // Load the PIO program in memory and initialize it
@@ -113,29 +103,27 @@ Result ws2812_init(uint count, uint pin) {
     irq_set_exclusive_handler(DMA_IRQ_1, dma_irq_handler);
     irq_set_enabled(DMA_IRQ_1, true);
 
-    swapchain_init(&driver.swapchain, count * sizeof(uint32_t), 3);
-
     driver.pio = pio;
     driver.pio_sm = (uint)pio_sm;
     driver.pio_offset = pio_offset;
     driver.count = count;
     driver.dma_channel = (uint)dma_channel;
+    driver.swapchain = swapchain;
     driver.is_init = true;
 
-    return RESULT_ALL_OK;
+    return 0;
 }
 
 bool ws2812_is_init() { return driver.is_init; }
+
+size_t ws2812_led_count() { return driver.count; }
 
 void ws2812_start_transmission() {
     if (driver.is_transmitting)
         return;
 
-    driver.read_node = swapchain_borrow_for_read(&driver.swapchain);
-    dma_channel_set_read_addr(driver.dma_channel,
-                              swapchain_node_get_buffer_ptr(driver.read_node),
-                              true);
-
+    dma_channel_set_read_addr(
+        driver.dma_channel, swapchain_consumer_buffer(driver.swapchain), true);
     driver.is_transmitting = true;
 }
 
@@ -147,27 +135,26 @@ void ws2812_stop_transmission() {
     dma_channel_abort(driver.dma_channel);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     dma_channel_set_irq1_enabled(driver.dma_channel, true);
-    swapchain_return_after_read(&driver.swapchain, driver.read_node);
 
     driver.is_transmitting = false;
 }
 
-Swapchain *ws2812_get_swapchain() { return &driver.swapchain; }
+size_t ws2812_get_pixel_count() { return driver.count; }
 
-Result ws2812_deinit() {
+void ws2812_deinit() {
     if (!driver.is_init)
-        return RESULT_NOT_INIT;
+        return;
 
     ws2812_stop_transmission();
-
-    swapchain_deinit(&driver.swapchain);
 
     // PIO ciao
     ws2812_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
     pio_remove_program(driver.pio, &ws2812_program, driver.pio_offset);
 
-    driver.is_init = false;
-
-    return RESULT_ALL_OK;
+    driver = (ws2812_t){
+        .swapchain = NULL,
+        .is_init = false,
+        .is_transmitting = false,
+    };
 }

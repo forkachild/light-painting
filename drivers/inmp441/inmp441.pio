@@ -1,25 +1,25 @@
 ; High optimized PIO program to receive audio samples from I2S only from left channel.
 ; Shifts two 0 bits followed by 24-bits of sample and skips the right channel.
-;
-; I love PIO!!!
 
 .program inmp441
 .side_set 2
 
-.define public required_clock   6144000
+.define public required_clock   6410000
 .define public bits_in_per_word    32
 
-    set x, 30        side 0b00
+    set x, 30       side 0b00   ; Switch to left channel
+                                ; Whenever WS changes, SCK must go from 1 to 0
 left:
-    in pins, 1       side 0b01
-    jmp x--, left    side 0b00
-    in pins, 1       side 0b11 ; Last bit of left has WCLK change per I2S spec
+    in pins, 1      side 0b01   ; Sample bits 0..30
+    jmp x--, left   side 0b00   ; Loop
+    in pins, 1      side 0b01   ; Sample bit 31 (last one)
 
-    set x, 30        side 0b10
+    set x, 30       side 0b10   ; Switch to right channel
+                                ; Whenever WS changes, SCK must go from 1 to 0
 right:
-    nop              side 0b11
-    jmp x--, right   side 0b10
-    nop              side 0b01 ; Last bit of right also has WCLK change
+    in pins, 1      side 0b11   ; Sample bits 0..30
+    jmp x--, right  side 0b10   ; Loop
+    in pins, 1      side 0b11   ; Sample bit 31
 
 % c-sdk {
 #include "hardware/clocks.h"
@@ -34,20 +34,20 @@ static inline void inmp441_program_init(PIO pio, uint sm, uint offset,
     pio_gpio_init(pio, sck_pin);
     pio_gpio_init(pio, ws_pin);
 
-    pio_sm_config c = inmp441_program_get_default_config(offset);
+    pio_sm_config cfg = inmp441_program_get_default_config(offset);
     
-    sm_config_set_clkdiv(&c, (float)clock_get_hz(clk_sys) / inmp441_required_clock);
-    sm_config_set_in_pins(&c, data_pin);
-    sm_config_set_sideset_pins(&c, sck_pin);
-    sm_config_set_in_shift(&c, false, true, inmp441_bits_in_per_word);
-    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+    sm_config_set_clkdiv(&cfg, (float)clock_get_hz(clk_sys) / inmp441_required_clock);
+    sm_config_set_in_pins(&cfg, data_pin);
+    sm_config_set_sideset_pins(&cfg, sck_pin);
+    sm_config_set_in_shift(&cfg, false, true, inmp441_bits_in_per_word);
+    sm_config_set_fifo_join(&cfg, PIO_FIFO_JOIN_RX);
 
     gpio_set_drive_strength(sck_pin, GPIO_DRIVE_STRENGTH_12MA);
     gpio_set_slew_rate(sck_pin, GPIO_SLEW_RATE_FAST);
     gpio_set_pulls(data_pin, false, true);
     hw_set_bits(&pio->input_sync_bypass, 1u << data_pin);
 
-    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_init(pio, sm, offset, &cfg);
     pio_sm_set_enabled(pio, sm, true);
 }
 

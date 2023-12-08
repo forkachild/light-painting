@@ -1,49 +1,59 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.25)
+
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
-project(LightPainting C CXX ASM)
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-
-pico_sdk_init()
+project(light-painting C CXX ASM)
 
 add_compile_options(
     -Wall
+    -Wextra
+    -Werror
     -Wno-format
     -Wno-unused-function
     -Wno-maybe-uninitialized
+    -Wpointer-arith
+    -Wcast-align
 )
 
-add_executable(LightPainting)
+add_link_options(
+    -Wall
+    -Wextra
+    -Werror
+    -flto
+)
 
-file(GLOB PIO_ASM_SRCS pio/*.pio)
-foreach(PIO_ASM_SRC ${PIO_ASM_SRCS})
-    pico_generate_pio_header(LightPainting ${PIO_ASM_SRC} OUTPUT_DIR include/pio)
-endforeach()
+add_definitions(
+    -DAUDIO_ENVELOPE
+    -DSWAPCHAIN_CRITICAL_SECTION
+)
 
-# add_definitions(-DPROFILE_FPS)
+pico_sdk_init()
 
-target_sources(LightPainting
+add_subdirectory(util)
+add_subdirectory(fft)
+add_subdirectory(swapchain)
+add_subdirectory(drivers)
+add_subdirectory(audio)
+
+add_executable(light-painting)
+target_sources(light-painting
     PRIVATE
-        program.c
-        ws2812_pio.c
-        inmp441_pio.c
-        swapchain.c
-        canvas.c
-        fft.c
-        status.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/main.c
+)
+target_link_libraries(light-painting
+    PRIVATE
+        inmp441
+        ws2812
+        util
+        audio
+        swapchain
+        pico_stdlib
 )
 
-target_include_directories(LightPainting PUBLIC include)
-
-target_link_libraries(LightPainting
-    pico_stdlib
-    pico_mem_ops
-    hardware_pio
-    hardware_dma
-)
-
-pico_add_extra_outputs(LightPainting)
-pico_enable_stdio_usb(LightPainting 1)
-pico_enable_stdio_uart(LightPainting 0)
+pico_add_extra_outputs(light-painting)
+pico_enable_stdio_usb(light-painting ON)
+pico_enable_stdio_uart(light-painting OFF)
