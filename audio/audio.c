@@ -93,9 +93,17 @@ int audio_init(audio_context_t **context, size_t audio_sample_count) {
     return 1;
 }
 
-void audio_feed_samples_24bit(audio_context_t *context, uint32_t *samples) {
-    for (size_t i = 0; i < context->audio_sample_count; i++)
-        context->audio_sample_buffer[i] = (float)samples[i] / AMPLITUDE_24BIT;
+void audio_feed_inmp441(audio_context_t *context, const uint32_t *samples) {
+    for (size_t i = 0; i < context->audio_sample_count; i++) {
+        // Extract the sample
+        uint32_t sample = samples[i];
+
+        // The MSB and 7 LSBs are zeroed out
+        sample = (sample & 0x7FFFFF80) >> 7;
+
+        // Scale and put
+        context->audio_sample_buffer[i] = (float)sample / AMPLITUDE_24BIT;
+    }
 }
 
 #ifdef AUDIO_ENVELOPE
@@ -105,7 +113,7 @@ void audio_envelope(audio_context_t *context) {
 }
 #endif
 
-void audio_apply_gain(audio_context_t *context, float gain) {
+void audio_gain(audio_context_t *context, float gain) {
     for (size_t i = 0; i < context->audio_sample_count; i++)
         context->audio_sample_buffer[i] *= gain;
 }

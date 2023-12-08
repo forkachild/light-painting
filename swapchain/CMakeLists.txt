@@ -9,5 +9,6 @@ target_sources(swapchain
 target_include_directories(swapchain PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 target_link_libraries(swapchain
-    pico_stdlib
+    PRIVATE
+        pico_stdlib
 )

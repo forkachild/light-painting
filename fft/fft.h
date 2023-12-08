@@ -1,4 +1,5 @@
-#pragma once
+#ifndef FFT_H
+#define FFT_H
 
 #include <complex.h>
 #include <stdint.h>
@@ -22,3 +23,5 @@ void fft_rad2_dif_d(fft_context_d_t *context, double complex *samples,
 const float *fft_get_frequency_bins(fft_context_t *context);
 void fft_deinit(fft_context_t **context);
 void fft_deinit_d(fft_context_d_t **context);
+
+#endif

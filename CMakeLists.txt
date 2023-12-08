@@ -12,7 +12,6 @@ add_compile_options(
     -Wno-maybe-uninitialized
     -Wpointer-arith
     -Wcast-align
-    -flto
 )
 
 add_link_options(
@@ -21,15 +20,19 @@ add_link_options(
     -flto
 )
 
+add_definitions(
+    -DAUDIO_ENVELOPE
+    -DSWAPCHAIN_CRITICAL_SECTION
+)
+
 include($ENV{PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 project(light-painting C CXX ASM)
 pico_sdk_init()
 
-add_subdirectory(canvas)
+add_subdirectory(util)
 add_subdirectory(fft)
 add_subdirectory(swapchain)
 add_subdirectory(drivers)
-add_subdirectory(visualization)
 add_subdirectory(audio)
 
 add_executable(light-painting)
@@ -41,11 +44,9 @@ target_link_libraries(light-painting
     PRIVATE
         inmp441
         ws2812
-        canvas
+        util
         audio
         swapchain
-        fft
-        visualization
         pico_stdlib
 )
 

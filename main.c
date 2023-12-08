@@ -1,11 +1,11 @@
 #include "audio.h"
-#include "canvas.h"
-#include "fft.h"
+#include "color.h"
 #include "inmp441.h"
-#include "pico/stdlib.h"
-#include "pico/types.h"
 #include "swapchain.h"
 #include "ws2812.h"
+
+#include <pico/stdlib.h>
+#include <pico/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -30,7 +30,7 @@ static argb_color_t magnitude_to_color(float magnitude) {
     return argb_color_from_rgb(0xFF, 0xFF, 0xFF);
 }
 
-static void visualizer_map_frequency_bits_to_pixels(float *frequency_bins,
+static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
                                                     size_t frequency_bin_count,
                                                     uint32_t *pixel_buffer,
                                                     size_t pixel_count) {
@@ -64,15 +64,30 @@ static void visualizer_map_frequency_bits_to_pixels(float *frequency_bins,
 
 int main() {
     audio_context_t *audio;
+    swapchain_context_t *audio_swapchain;
+    swapchain_context_t *led_swapchain;
+
     stdio_usb_init();
 
-    if (!inmp441_init(AUDIO_SAMPLE_COUNT, MIC_SCK_PIN, MIC_WS_PIN,
-                      MIC_DATA_PIN)) {
+    if (!swapchain_init(&audio_swapchain,
+                        inmp441_required_buffer_size(AUDIO_SAMPLE_COUNT))) {
+        printf("Could not initialize audio swapchain\n");
+        return EXIT_FAILURE;
+    }
+
+    if (!swapchain_init(&led_swapchain,
+                        ws2812_required_buffer_size(LED_COUNT))) {
+        printf("Could not initialize LED swapchain\n");
+        return EXIT_FAILURE;
+    }
+
+    if (!inmp441_init(audio_swapchain, AUDIO_SAMPLE_COUNT, MIC_SCK_PIN,
+                      MIC_WS_PIN, MIC_DATA_PIN)) {
         printf("Could not initialize INMP441 driver");
         return EXIT_FAILURE;
     }
 
-    if (!ws2812_init(LED_COUNT, LED_DATA_PIN)) {
+    if (!ws2812_init(led_swapchain, LED_COUNT, LED_DATA_PIN)) {
         printf("Could not initialize WS2812 driver");
         return EXIT_FAILURE;
     }
@@ -85,20 +100,20 @@ int main() {
     inmp441_start_sampling();
     ws2812_start_transmission();
 
-    while (1) {
-        inmp441_swap_buffers();
-        inmp441_normalize_audio_buffer();
+    while (true) {
+        swapchain_consumer_swap(audio_swapchain);
 
-        audio_feed_samples_24bit(audio, inmp441_get_audio_buffer());
+        audio_feed_inmp441(audio, swapchain_consumer_buffer(audio_swapchain));
         audio_envelope(audio);
+        audio_gain(audio, 1.5f);
         audio_fft(audio);
 
-        visualizer_map_frequency_bins_to_pixels( // TODO: Make this!
+        visualizer_map_frequency_bins_to_pixels(
             audio_get_frequency_bins(audio),
-            audio_get_frequency_bin_count(audio), ws2812_get_pixel_buffer(),
-            ws2812_get_pixel_count());
+            audio_get_frequency_bin_count(audio),
+            swapchain_producer_buffer(led_swapchain), ws2812_get_pixel_count());
 
-        ws2812_swap_buffers();
+        swapchain_producer_swap(led_swapchain);
     }
 
     return EXIT_SUCCESS;

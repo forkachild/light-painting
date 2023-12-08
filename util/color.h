@@ -1,10 +1,6 @@
 #ifndef CANVAS_H
 #define CANVAS_H
 
-#include "pico/stdlib.h"
-#include "pico/types.h"
-#include <math.h>
-#include <memory.h>
 #include <stdlib.h>
 
 typedef union argb_color {

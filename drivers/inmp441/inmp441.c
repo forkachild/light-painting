@@ -12,7 +12,7 @@
 
 typedef struct {
     // Number of samples each buffer will contain
-    uint sample_count;
+    size_t sample_count;
 
     // Selected PIO bank
     PIO pio;
@@ -42,22 +42,28 @@ typedef struct {
     bool is_init;
 
     // Whether transmission is ongoing
-    bool is_transmitting;
-} INMP441PIODriver;
+    bool is_sampling;
+} inmp441_t;
 
-static INMP441PIODriver driver = {
+static inmp441_t driver = {
+    .swapchain = SWAPCHAIN_UNINIT,
     .is_init = false,
-    .is_transmitting = false,
+    .is_sampling = false,
 };
 
 static void dma_irq_handler() {
-    swapchain_swap_left_side(driver.swapchain);
+    swapchain_producer_swap(driver.swapchain);
     dma_channel_acknowledge_irq0(driver.dma_channel);
     dma_channel_set_write_addr(
-        driver.dma_channel, swapchain_get_left_buffer(driver.swapchain), true);
+        driver.dma_channel, swapchain_producer_buffer(driver.swapchain), true);
 }
 
-int inmp441_init(uint sample_count, uint sck_pin, uint ws_pin, uint data_pin) {
+size_t inmp441_required_buffer_size(size_t sample_count) {
+    return sample_count * sizeof(uint32_t);
+}
+
+int inmp441_init(swapchain_context_t *swapchain, size_t sample_count,
+                 uint sck_pin, uint ws_pin, uint data_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -106,8 +112,6 @@ int inmp441_init(uint sample_count, uint sck_pin, uint ws_pin, uint data_pin) {
     pio_offset = pio_add_program(pio, &inmp441_program);
     inmp441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
 
-    swapchain_init(&driver.swapchain, sample_count * sizeof(uint32_t));
-
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
     channel_config_set_read_increment(&dma_config, false);
@@ -128,6 +132,7 @@ int inmp441_init(uint sample_count, uint sck_pin, uint ws_pin, uint data_pin) {
     driver.pio_sm = (uint)pio_sm;
     driver.pio_offset = pio_offset;
     driver.dma_channel = (uint)dma_channel;
+    driver.swapchain = swapchain;
     driver.sck_pin = sck_pin;
     driver.ws_pin = ws_pin;
     driver.data_pin = data_pin;
@@ -136,18 +141,20 @@ int inmp441_init(uint sample_count, uint sck_pin, uint ws_pin, uint data_pin) {
     return 0;
 }
 
+size_t inmp441_sample_count() { return driver.sample_count; }
+
 void inmp441_start_sampling() {
-    if (driver.is_transmitting)
+    if (driver.is_sampling)
         return;
 
     dma_channel_set_write_addr(
-        driver.dma_channel, swapchain_get_left_buffer(driver.swapchain), true);
+        driver.dma_channel, swapchain_producer_buffer(driver.swapchain), true);
 
-    driver.is_transmitting = true;
+    driver.is_sampling = true;
 }
 
 void inmp441_stop_sampling() {
-    if (!driver.is_transmitting)
+    if (!driver.is_sampling)
         return;
 
     dma_channel_set_irq0_enabled(driver.dma_channel, false);
@@ -155,27 +162,7 @@ void inmp441_stop_sampling() {
     dma_channel_acknowledge_irq0(driver.dma_channel);
     dma_channel_set_irq0_enabled(driver.dma_channel, true);
 
-    driver.is_transmitting = false;
-}
-
-void inmp441_swap_buffers() { swapchain_swap_right_side(driver.swapchain); }
-
-void inmp441_normalize_audio_buffer() {
-    uint32_t *audio_buffer = swapchain_get_right_buffer(driver.swapchain);
-
-    for (uint i = 0; i < driver.sample_count; i++) {
-        uint32_t sample = audio_buffer[i];
-
-        // The MSB and 7 LSBs are zeroed out
-        sample = (sample & 0x7FFFFF80) >> 7;
-
-        // Clean 24-bit sample is stored again
-        audio_buffer[i] = sample;
-    }
-}
-
-const uint32_t *inmp441_get_audio_buffer() {
-    return (const uint32_t *)swapchain_get_right_buffer(driver.swapchain);
+    driver.is_sampling = false;
 }
 
 void inmp441_deinit() {
@@ -184,9 +171,14 @@ void inmp441_deinit() {
         return;
 
     inmp441_stop_sampling();
-    swapchain_deinit(&driver.swapchain);
 
     inmp441_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
     pio_remove_program(driver.pio, &inmp441_program, driver.pio_offset);
+
+    driver = (inmp441_t){
+        .swapchain = SWAPCHAIN_UNINIT,
+        .is_init = false,
+        .is_sampling = false,
+    };
 }
