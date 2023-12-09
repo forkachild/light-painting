@@ -1,9 +1,9 @@
-#include "ws2812.h"
+#include "neopixel.h"
 #include "hardware/dma.h"
 #include "hardware/pio.h"
+#include "neopixel.pio.h"
 #include "pico/stdlib.h"
 #include "swapchain.h"
-#include "ws2812.pio.h"
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -31,9 +31,9 @@ typedef struct {
 
     // Whether the driver is transmitting
     bool is_transmitting;
-} ws2812_t;
+} neopixel_t;
 
-static ws2812_t driver = {
+static neopixel_t driver = {
     .swapchain = NULL,
     .is_init = false,
     .is_transmitting = false,
@@ -43,16 +43,16 @@ static void dma_irq_handler() {
     swapchain_consumer_swap(driver.swapchain);
     dma_channel_acknowledge_irq1(driver.dma_channel);
     pio_sm_exec(driver.pio, driver.pio_sm,
-                pio_encode_jmp(driver.pio_offset + ws2812_offset_sync));
+                pio_encode_jmp(driver.pio_offset + neopixel_offset_sync));
     dma_channel_set_read_addr(
         driver.dma_channel, swapchain_consumer_buffer(driver.swapchain), true);
 }
 
-size_t ws2812_required_buffer_size(size_t led_count) {
+size_t neopixel_required_buffer_size(size_t led_count) {
     return led_count * sizeof(uint32_t);
 }
 
-int ws2812_init(swapchain_t *swapchain, size_t count, uint pin) {
+int neopixel_init(swapchain_t *swapchain, size_t count, uint pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -65,11 +65,11 @@ int ws2812_init(swapchain_t *swapchain, size_t count, uint pin) {
     pio = pio0;
 
     // Check if the program can be loaded in the pio
-    if (!pio_can_add_program(pio, &ws2812_program)) {
+    if (!pio_can_add_program(pio, &neopixel_program)) {
         // Try the next, PIO1
         pio = pio1;
 
-        if (!pio_can_add_program(pio, &ws2812_program)) {
+        if (!pio_can_add_program(pio, &neopixel_program)) {
             // Guard if not
             return -1;
         }
@@ -86,8 +86,8 @@ int ws2812_init(swapchain_t *swapchain, size_t count, uint pin) {
     }
 
     // Load the PIO program in memory and initialize it
-    pio_offset = pio_add_program(pio, &ws2812_program);
-    ws2812_program_init(pio, pio_sm, pio_offset, pin);
+    pio_offset = pio_add_program(pio, &neopixel_program);
+    neopixel_program_init(pio, pio_sm, pio_offset, pin);
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
@@ -111,15 +111,15 @@ int ws2812_init(swapchain_t *swapchain, size_t count, uint pin) {
     driver.swapchain = swapchain;
     driver.is_init = true;
 
-    return 0;
+    return 1;
 }
 
-bool ws2812_is_init() { return driver.is_init; }
+bool neopixel_is_init() { return driver.is_init; }
 
-size_t ws2812_led_count() { return driver.count; }
+size_t neopixel_led_count() { return driver.count; }
 
-void ws2812_start_transmission() {
-    if (driver.is_transmitting)
+void neopixel_start_transmission() {
+    if (!driver.is_init || driver.is_transmitting)
         return;
 
     dma_channel_set_read_addr(
@@ -127,8 +127,8 @@ void ws2812_start_transmission() {
     driver.is_transmitting = true;
 }
 
-void ws2812_stop_transmission() {
-    if (!driver.is_transmitting)
+void neopixel_stop_transmission() {
+    if (!driver.is_init || !driver.is_transmitting)
         return;
 
     dma_channel_set_irq1_enabled(driver.dma_channel, false);
@@ -139,20 +139,20 @@ void ws2812_stop_transmission() {
     driver.is_transmitting = false;
 }
 
-size_t ws2812_get_pixel_count() { return driver.count; }
+size_t neopixel_get_pixel_count() { return driver.count; }
 
-void ws2812_deinit() {
+void neopixel_deinit() {
     if (!driver.is_init)
         return;
 
-    ws2812_stop_transmission();
+    neopixel_stop_transmission();
 
     // PIO ciao
-    ws2812_program_deinit(driver.pio, driver.pio_sm);
+    neopixel_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
-    pio_remove_program(driver.pio, &ws2812_program, driver.pio_offset);
+    pio_remove_program(driver.pio, &neopixel_program, driver.pio_offset);
 
-    driver = (ws2812_t){
+    driver = (neopixel_t){
         .swapchain = NULL,
         .is_init = false,
         .is_transmitting = false,

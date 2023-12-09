@@ -1,7 +1,7 @@
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
 #include "hardware/pio.h"
-#include "inmp441.pio.h"
+#include "i2s.pio.h"
 #include "pico/stdlib.h"
 #include "pico/sync.h"
 #include "swapchain.h"
@@ -43,27 +43,30 @@ typedef struct {
 
     // Whether transmission is ongoing
     bool is_sampling;
-} inmp441_t;
+} i2s_t;
 
-static inmp441_t driver = {
+static i2s_t driver = {
     .swapchain = NULL,
     .is_init = false,
     .is_sampling = false,
 };
 
+static size_t irq_hit = 0;
+
 static void dma_irq_handler() {
     swapchain_producer_swap(driver.swapchain);
+    irq_hit++;
     dma_channel_acknowledge_irq0(driver.dma_channel);
     dma_channel_set_write_addr(
         driver.dma_channel, swapchain_producer_buffer(driver.swapchain), true);
 }
 
-size_t inmp441_required_buffer_size(size_t sample_count) {
+size_t i2s_required_buffer_size(size_t sample_count) {
     return sample_count * sizeof(uint32_t);
 }
 
-int inmp441_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
-                 uint ws_pin, uint data_pin) {
+int i2s_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
+             uint ws_pin, uint data_pin) {
     PIO pio;
     int pio_sm, dma_channel;
     uint pio_offset;
@@ -85,11 +88,11 @@ int inmp441_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
     pio = pio0;
 
     // Check if the program can be loaded in the pio
-    if (!pio_can_add_program(pio, &inmp441_program)) {
+    if (!pio_can_add_program(pio, &i2s_program)) {
         // Try the next, PIO1
         pio = pio1;
 
-        if (!pio_can_add_program(pio, &inmp441_program)) {
+        if (!pio_can_add_program(pio, &i2s_program)) {
             // Guard if not
             return -1;
         }
@@ -103,14 +106,13 @@ int inmp441_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
     if ((dma_channel = dma_claim_unused_channel(false)) == -1) {
         // Give up the State Machine claimed before returning
         pio_sm_unclaim(pio, pio_sm);
-
         // Guard if not
         return -1;
     }
 
     // Load the PIO program in memory and initialize it
-    pio_offset = pio_add_program(pio, &inmp441_program);
-    inmp441_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
+    pio_offset = pio_add_program(pio, &i2s_program);
+    i2s_program_init(pio, pio_sm, pio_offset, sck_pin, ws_pin, data_pin);
 
     // Setup the DMA for data bursts
     dma_config = dma_channel_get_default_config(dma_channel);
@@ -138,12 +140,12 @@ int inmp441_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
     driver.data_pin = data_pin;
     driver.is_init = true;
 
-    return 0;
+    return 1;
 }
 
-size_t inmp441_sample_count() { return driver.sample_count; }
+size_t i2s_sample_count() { return driver.sample_count; }
 
-void inmp441_start_sampling() {
+void i2s_start_sampling() {
     if (!driver.is_init || driver.is_sampling)
         return;
 
@@ -153,7 +155,7 @@ void inmp441_start_sampling() {
     driver.is_sampling = true;
 }
 
-void inmp441_stop_sampling() {
+void i2s_stop_sampling() {
     if (!driver.is_init || !driver.is_sampling)
         return;
 
@@ -165,18 +167,23 @@ void inmp441_stop_sampling() {
     driver.is_sampling = false;
 }
 
-void inmp441_deinit() {
+void i2s_print_irq_hits() {
+    printf("IRQ hits %d\n", irq_hit);
+    irq_hit = 0;
+}
+
+void i2s_deinit() {
     // Check if valid in memory
     if (!driver.is_init)
         return;
 
-    inmp441_stop_sampling();
+    i2s_stop_sampling();
 
-    inmp441_program_deinit(driver.pio, driver.pio_sm);
+    i2s_program_deinit(driver.pio, driver.pio_sm);
     // This also unclaims the State Machine
-    pio_remove_program(driver.pio, &inmp441_program, driver.pio_offset);
+    pio_remove_program(driver.pio, &i2s_program, driver.pio_offset);
 
-    driver = (inmp441_t){
+    driver = (i2s_t){
         .swapchain = NULL,
         .is_init = false,
         .is_sampling = false,

@@ -1,2 +1,2 @@
-add_subdirectory(inmp441)
-add_subdirectory(ws2812)
+add_subdirectory(i2s)
+add_subdirectory(neopixel)

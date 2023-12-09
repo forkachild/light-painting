@@ -3,7 +3,7 @@
 ; And when it is, it moves to a 50us LO sync pulse and waits
 ; for more data to transmit
 
-.program ws2812
+.program neopixel
 .side_set 1
 
 .define public baud 10000000
@@ -26,15 +26,15 @@ sync_loop:
 % c-sdk {
 #include "hardware/clocks.h"
 
-static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin) {
+static inline void neopixel_program_init(PIO pio, uint sm, uint offset, uint pin) {
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
 
-    pio_sm_config c = ws2812_program_get_default_config(offset);
+    pio_sm_config c = neopixel_program_get_default_config(offset);
     sm_config_set_sideset_pins(&c, pin);
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
-    sm_config_set_clkdiv(&c, 3.f * clock_get_hz(clk_sys) / ws2812_baud);
+    sm_config_set_clkdiv(&c, 3.f * clock_get_hz(clk_sys) / neopixel_baud);
 
     gpio_set_slew_rate(pin, GPIO_SLEW_RATE_FAST);
     gpio_set_drive_strength(pin, GPIO_DRIVE_STRENGTH_12MA);
@@ -43,7 +43,7 @@ static inline void ws2812_program_init(PIO pio, uint sm, uint offset, uint pin) 
     pio_sm_set_enabled(pio, sm, true);
 }
 
-static inline void ws2812_program_deinit(PIO pio, uint sm) {
+static inline void neopixel_program_deinit(PIO pio, uint sm) {
     pio_sm_set_enabled(pio, sm, false);
     pio_sm_unclaim(pio, sm);
 }

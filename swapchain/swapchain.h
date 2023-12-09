@@ -7,10 +7,19 @@
 #define DEFAULT_RING_SIZE 2
 
 typedef struct {
+    // This amazing quote by Herb Sutter guarantees correct alignment for
+    // arbitrary data.
+    //      "Alignment. Any memory Alignment. Any memory that's allocated
+    //      dynamically via new or malloc is guaranteed to be properly aligned
+    //      for objects of **any type**, but buffers that are not allocated
+    //      dynamically have no such guarantee."
     void *mem;
     void *buffer_chain[DEFAULT_BUFFER_COUNT];
 } swapchain_t;
 
+/**
+ * Instantiates a swap-
+ */
 int swapchain_init(swapchain_t *this, size_t buffer_size);
 
 /**
@@ -22,7 +31,7 @@ void swapchain_producer_swap(swapchain_t *this);
 /**
  * Consumer side
  */
-void *swapchain_consumer_buffer(swapchain_t *this);
+const void *swapchain_consumer_buffer(swapchain_t *this);
 void swapchain_consumer_swap(swapchain_t *this);
 
 void swapchain_deinit(swapchain_t *this);

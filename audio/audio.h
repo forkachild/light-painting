@@ -15,7 +15,7 @@ typedef struct {
 } audio_t;
 
 int audio_init(audio_t *this, size_t audio_sample_count);
-void audio_feed_inmp441(audio_t *context, const uint32_t *samples);
+void audio_feed_i2s(audio_t *context, const int32_t *samples);
 
 #ifdef AUDIO_ENVELOPE
 void audio_envelope(audio_t *this);

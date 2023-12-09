@@ -1,9 +1,14 @@
 #include "swapchain.h"
-#include <pico/critical_section.h>
 
 #define PRODUCER_INDEX 0
-#define CONSUMER_INDEX 1
-#define SHARED_INDEX 2
+#define SHARED_INDEX 1
+#define CONSUMER_INDEX 2
+
+static inline void swap_elements(void *arr[], size_t first, size_t second) {
+    void *temp = arr[first];
+    arr[first] = arr[second];
+    arr[second] = temp;
+}
 
 int swapchain_init(swapchain_t *this, size_t buffer_size) {
     void *alloc = malloc(DEFAULT_BUFFER_COUNT * buffer_size);
@@ -23,35 +28,15 @@ void *swapchain_producer_buffer(swapchain_t *this) {
 }
 
 void swapchain_producer_swap(swapchain_t *this) {
-#ifdef SWAPCHAIN_CRITICAL_SECTION
-    uint32_t saved_irq = save_and_disable_interrupts();
-#endif
-
-    swapchain_t *temp = this->buffer_chain[SHARED_INDEX];
-    this->buffer_chain[SHARED_INDEX] = this->buffer_chain[PRODUCER_INDEX];
-    this->buffer_chain[PRODUCER_INDEX] = temp;
-
-#ifdef SWAPCHAIN_CRITICAL_SECTION
-    restore_interrupts(saved_irq);
-#endif
+    swap_elements(this->buffer_chain, SHARED_INDEX, PRODUCER_INDEX);
 }
 
-void *swapchain_consumer_buffer(swapchain_t *this) {
+const void *swapchain_consumer_buffer(swapchain_t *this) {
     return this->buffer_chain[CONSUMER_INDEX];
 }
 
 void swapchain_consumer_swap(swapchain_t *this) {
-#ifdef SWAPCHAIN_CRITICAL_SECTION
-    uint32_t saved_irq = save_and_disable_interrupts();
-#endif
-
-    swapchain_t *temp = this->buffer_chain[SHARED_INDEX];
-    this->buffer_chain[SHARED_INDEX] = this->buffer_chain[CONSUMER_INDEX];
-    this->buffer_chain[CONSUMER_INDEX] = temp;
-
-#ifdef SWAPCHAIN_CRITICAL_SECTION
-    restore_interrupts(saved_irq);
-#endif
+    swap_elements(this->buffer_chain, SHARED_INDEX, CONSUMER_INDEX);
 }
 
 void swapchain_deinit(swapchain_t *this) { free(this->mem); }

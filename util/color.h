@@ -1,17 +1,22 @@
-#ifndef CANVAS_H
-#define CANVAS_H
+#ifndef COLOR_H
+#define COLOR_H
 
 #include <stdlib.h>
 
-typedef union color_grba {
+typedef union {
     struct {
-        uint8_t g, r, b, a;
+        // Little endian
+        uint8_t a;
+        uint8_t b;
+        uint8_t r;
+        uint8_t g;
     } grba;
     uint32_t value;
-} color_grba_t;
+} color_neopixel_t;
 
-static color_grba_t color_grba_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
-    return (color_grba_t){
+static inline color_neopixel_t color_neopixel_from_rgb(uint8_t r, uint8_t g,
+                                                       uint8_t b) {
+    return (color_neopixel_t){
         .grba =
             {
                 .r = r,
@@ -22,11 +27,12 @@ static color_grba_t color_grba_from_rgb(uint8_t r, uint8_t g, uint8_t b) {
     };
 }
 
-static color_grba_t color_grba_from_hsv(uint8_t h, uint8_t s, uint8_t v) {
+static color_neopixel_t color_neopixel_from_hsv(uint8_t h, uint8_t s,
+                                                uint8_t v) {
     uint8_t region, remainder, p, q, t;
 
     if (s == 0)
-        return color_grba_from_rgb(v, v, v);
+        return color_neopixel_from_rgb(v, v, v);
 
     region = h / 43;
     remainder = (h - (region * 43)) * 6;
@@ -37,21 +43,21 @@ static color_grba_t color_grba_from_hsv(uint8_t h, uint8_t s, uint8_t v) {
 
     switch (region) {
     case 0:
-        return color_grba_from_rgb(v, t, p);
+        return color_neopixel_from_rgb(v, t, p);
     case 1:
-        return color_grba_from_rgb(q, v, p);
+        return color_neopixel_from_rgb(q, v, p);
     case 2:
-        return color_grba_from_rgb(p, v, t);
+        return color_neopixel_from_rgb(p, v, t);
     case 3:
-        return color_grba_from_rgb(p, q, v);
+        return color_neopixel_from_rgb(p, q, v);
     case 4:
-        return color_grba_from_rgb(t, p, v);
+        return color_neopixel_from_rgb(t, p, v);
     default:
-        return color_grba_from_rgb(v, p, q);
+        return color_neopixel_from_rgb(v, p, q);
     }
 }
 
-static color_grba_t color_grba_from_hsv_f(float h, float s, float v) {
+static color_neopixel_t color_neopixel_from_hsv_f(float h, float s, float v) {
     float hh, p, q, t, ff, r, g, b;
     int i;
 
@@ -108,12 +114,13 @@ static color_grba_t color_grba_from_hsv_f(float h, float s, float v) {
         }
     }
 
-    return color_grba_from_rgb((uint8_t)(r * 255), (uint8_t)(g * 255),
-                               (uint8_t)(b * 255));
+    return color_neopixel_from_rgb((uint8_t)(r * 255), (uint8_t)(g * 255),
+                                   (uint8_t)(b * 255));
 }
 
-static color_grba_t color_grba_add(color_grba_t left, color_grba_t right) {
-    return (color_grba_t){
+static color_neopixel_t color_neopixel_add(color_neopixel_t left,
+                                           color_neopixel_t right) {
+    return (color_neopixel_t){
         .grba =
             {
                 .r = left.grba.r + right.grba.r,

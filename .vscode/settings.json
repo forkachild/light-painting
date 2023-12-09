@@ -7,9 +7,4 @@
         "source.organizeImports": true,
     },
     "editor.formatOnSave": true,
-    "files.associations": {
-        "*.css": "tailwindcss",
-        "fft.h": "c",
-        "visualization.h": "c"
-    },
 }

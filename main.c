@@ -1,24 +1,25 @@
+#include "async.h"
 #include "audio.h"
 #include "color.h"
-#include "inmp441.h"
+#include "i2s.h"
+#include "neopixel.h"
 #include "swapchain.h"
-#include "ws2812.h"
 
 #include <pico/stdlib.h>
 #include <pico/types.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-#define AUDIO_SAMPLE_COUNT 256
+#define AUDIO_SAMPLE_COUNT 64
 #define LED_COUNT 300
 
-#define MIC_SCK_PIN 10
-#define MIC_WS_PIN 11
-#define MIC_DATA_PIN 12
+#define MIC_SCK_PIN 27
+#define MIC_WS_PIN 28
+#define MIC_DATA_PIN 29
 
-#define LED_DATA_PIN 13
+#define LED_DATA_PIN 8
 
-static color_grba_t magnitude_to_color(float magnitude) {
+static color_neopixel_t magnitude_to_color(float magnitude) {
     if (magnitude < 0.f) {
         magnitude = 0.f;
     }
@@ -27,7 +28,7 @@ static color_grba_t magnitude_to_color(float magnitude) {
         magnitude = 1.f;
     }
 
-    return color_grba_from_rgb(0xFF, 0xFF, 0xFF);
+    return color_neopixel_from_hsv_f(magnitude * 360.f, 1.f, 1.f);
 }
 
 static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
@@ -43,7 +44,7 @@ static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
             float index_f = index - index_i;
 
             pixel_buffer[pixel] =
-                color_grba_add(
+                color_neopixel_add(
                     magnitude_to_color((1.f - index_f) *
                                        frequency_bins[index_i]),
                     magnitude_to_color(index_f * frequency_bins[index_i + 1]))
@@ -70,40 +71,58 @@ int main() {
     stdio_usb_init();
 
     if (!swapchain_init(&audio_swapchain,
-                        inmp441_required_buffer_size(AUDIO_SAMPLE_COUNT))) {
+                        i2s_required_buffer_size(AUDIO_SAMPLE_COUNT))) {
         printf("Could not initialize audio swapchain\n");
         return EXIT_FAILURE;
     }
 
+    printf("Audio swapchain init!\n");
+
     if (!swapchain_init(&led_swapchain,
-                        ws2812_required_buffer_size(LED_COUNT))) {
+                        neopixel_required_buffer_size(LED_COUNT))) {
         printf("Could not initialize LED swapchain\n");
         return EXIT_FAILURE;
     }
 
-    if (!inmp441_init(&audio_swapchain, AUDIO_SAMPLE_COUNT, MIC_SCK_PIN,
-                      MIC_WS_PIN, MIC_DATA_PIN)) {
-        printf("Could not initialize INMP441 driver");
+    printf("LED swapchain init!\n");
+
+    if (!i2s_init(&audio_swapchain, AUDIO_SAMPLE_COUNT, MIC_SCK_PIN, MIC_WS_PIN,
+                  MIC_DATA_PIN)) {
+        printf("Could not initialize i2s driver");
         return EXIT_FAILURE;
     }
 
-    if (!ws2812_init(&led_swapchain, LED_COUNT, LED_DATA_PIN)) {
+    printf("INMP init!\n");
+
+    if (!neopixel_init(&led_swapchain, LED_COUNT, LED_DATA_PIN)) {
         printf("Could not initialize WS2812 driver");
         return EXIT_FAILURE;
     }
+
+    printf("WS2812 init!\n");
 
     if (!audio_init(&audio, AUDIO_SAMPLE_COUNT)) {
         printf("Could not initialize audio");
         return EXIT_FAILURE;
     }
 
-    inmp441_start_sampling();
-    ws2812_start_transmission();
+    printf("Audio init!\n");
+
+    i2s_start_sampling();
+    neopixel_start_transmission();
+
+    printf("Started sampling\n");
+
+    // Scratch buffers
+    int32_t scratch_int[8];
+    float scratch_float[8];
+
+    uint32_t max = 0;
 
     while (true) {
-        swapchain_consumer_swap(&audio_swapchain);
+        synchronized(swapchain_consumer_swap(&audio_swapchain));
 
-        audio_feed_inmp441(&audio, swapchain_consumer_buffer(&audio_swapchain));
+        audio_feed_i2s(&audio, swapchain_consumer_buffer(&audio_swapchain));
         audio_envelope(&audio);
         audio_gain(&audio, 1.5f);
         audio_fft(&audio);
@@ -112,9 +131,35 @@ int main() {
             audio_get_frequency_bins(&audio),
             audio_get_frequency_bin_count(&audio),
             swapchain_producer_buffer(&led_swapchain),
-            ws2812_get_pixel_count());
+            neopixel_get_pixel_count());
 
-        swapchain_producer_swap(&led_swapchain);
+        synchronized(swapchain_producer_swap(&led_swapchain));
+
+        // const int32_t *source =
+        //     (const int32_t *)swapchain_consumer_buffer(&audio_swapchain);
+        // uint32_t *dest = swapchain_producer_buffer(&led_swapchain);
+
+        // for (size_t i = 0; i < 8; i++) {
+        //     int32_t int_value = ((source[2 * i + 1]) << 1) >> 8;
+        //     uint32_t abs_value = (uint32_t)abs(int_value);
+        //     if (abs_value > max) {
+        //         max = abs_value;
+        //         printf("Highest %u\n", max);
+        //     }
+        //     // scratch_float[i] = (float)int_value;
+        // }
+
+        // printf("%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d\n", scratch_int[0],
+        //        scratch_int[1], scratch_int[2], scratch_int[3],
+        //        scratch_int[4], scratch_int[5], scratch_int[6],
+        //        scratch_int[7]);
+
+        // printf("%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n",
+        //        scratch_float[0], scratch_float[1], scratch_float[2],
+        //        scratch_float[3], scratch_float[4], scratch_float[5],
+        //        scratch_float[6], scratch_float[7]);
+
+        // sleep_ms(500);
     }
 
     return EXIT_SUCCESS;
