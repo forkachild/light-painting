@@ -4,6 +4,8 @@
 #include "i2s.h"
 #include "neopixel.h"
 #include "swapchain.h"
+#include <malloc.h>
+#include <math.h>
 
 #include <pico/stdlib.h>
 #include <pico/types.h>
@@ -19,14 +21,16 @@
 
 #define LED_DATA_PIN 8
 
-static color_neopixel_t magnitude_to_color(float magnitude) {
-    if (magnitude < 0.f) {
-        magnitude = 0.f;
-    }
+#define AUDIO_PEAK_AMPLITUDE ((uint32_t)0x00FFFFFF)
+#define AUDIO_GAIN_F 1000.f
 
-    if (magnitude > 1.f) {
+static color_neopixel_t magnitude_to_color(float magnitude) {
+    if (magnitude < 0.f)
+        magnitude = 0.f;
+    else if (magnitude > 1.f)
         magnitude = 1.f;
-    }
+
+    magnitude *= magnitude;
 
     return color_neopixel_from_hsv_f(magnitude * 360.f, 1.f, magnitude);
 }
@@ -69,7 +73,6 @@ int main() {
     swapchain_t led_swapchain;
 
     stdio_usb_init();
-    sleep_ms(3000);
 
     if (!swapchain_init(&audio_swapchain,
                         i2s_required_buffer_size(AUDIO_SAMPLE_COUNT))) {
@@ -102,25 +105,58 @@ int main() {
     i2s_start_sampling();
     neopixel_start_transmission();
 
-    printf("Started sampling\n");
+    printf("Visualizing\n");
+
+    struct mallinfo minfo = mallinfo();
+    printf("Memory info:\n"
+           "  arena = %u\n"
+           "  ordblks = %u\n"
+           "  smblks = %u\n"
+           "  hblks = %u\n"
+           "  hblkhd = %u\n"
+           "  usmblks = %u\n"
+           "  fsmblks = %u\n"
+           "  uordblks = %u\n"
+           "  fordblks = %u\n"
+           "  keepcost = %u\n",
+           minfo.arena, minfo.ordblks, minfo.smblks, minfo.hblks, minfo.hblkhd,
+           minfo.usmblks, minfo.fsmblks, minfo.uordblks, minfo.fordblks,
+           minfo.keepcost);
 
     while (true) {
-        synchronized(swapchain_consumer_swap(&audio_swapchain));
+        critical_section(swapchain_consumer_swap(&audio_swapchain));
 
-        audio_feed_i2s_stereo(
-            &audio, swapchain_consumer_buffer(&audio_swapchain), 0x000FFFFF);
+        // Feed the stereo data
+        audio_feed_i2s_stereo(&audio,
+                              swapchain_consumer_buffer(&audio_swapchain),
+                              AUDIO_PEAK_AMPLITUDE);
+
+        // Process the signal
+        audio_multiplyf(&audio, AUDIO_GAIN_F);
+        audio_multiply(&audio, &audio);
+        audio_smooth(&audio, 0.8f);
         audio_envelope(&audio);
-        audio_gain(&audio, 1.5f);
         audio_fft(&audio);
 
+        const float *audio_buffer = audio_sample_buffer(&audio);
+        const float *frequency_bins = &audio_buffer[1];
+        const size_t frequency_bin_count = audio_sample_count(&audio) / 2 - 1;
         visualizer_map_frequency_bins_to_pixels(
-            audio_get_frequency_bins(&audio),
-            audio_get_frequency_bin_count(&audio),
+            frequency_bins, frequency_bin_count,
             swapchain_producer_buffer(&led_swapchain),
             neopixel_get_pixel_count());
 
-        synchronized(swapchain_producer_swap(&led_swapchain));
+        critical_section(swapchain_producer_swap(&led_swapchain));
     }
+
+    neopixel_stop_transmission();
+    i2s_stop_sampling();
+
+    audio_deinit(&audio);
+    neopixel_deinit();
+    i2s_deinit();
+    swapchain_deinit(&led_swapchain);
+    swapchain_deinit(&audio_swapchain);
 
     return EXIT_SUCCESS;
 }

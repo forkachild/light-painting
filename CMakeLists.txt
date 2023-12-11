@@ -8,6 +8,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(light-painting C CXX ASM)
 add_compile_options(
+    -O3
     -Wextra
     -Wall
     -Werror
@@ -17,6 +18,7 @@ add_compile_options(
     -Wpointer-arith
     -Wcast-align)
 add_link_options(
+    -O3
     -Wextra
     -Wall
     -Werror

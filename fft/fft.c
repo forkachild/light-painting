@@ -6,14 +6,13 @@
 #include <stdlib.h>
 
 /**
- * @brief Ultra fast log base-2 of only 2^n numbers. For others, the
- * result/behavior is invalid/undefined.
+ * @brief Ultra fast log base-2 of only 2^n numbers.
  *
- * Since 2^n numbers will have only one '1' bit, we just need to shift
- * right until we find it, and that's log2N
+ * Since 2^n numbers have only one '1' bit, we just need to shift
+ * right until we find it
  *
- * @param N The input. *MUST BE A POWER OF 2*
- * @return The log base-2 result, -1 if not a power of two
+ * @param N The input.
+ * @return The log base 2 result, -1 if not a power of two
  */
 static inline int log2N(unsigned int N) {
     int value, n;
@@ -112,7 +111,7 @@ int fft_init(fft_t *this, unsigned int count) {
     return 1;
 }
 
-void fft_rad2_dit(fft_t *this, float complex *samples, float *frequency_bins) {
+void fft_rad2_dit(fft_t *this, float complex *samples) {
     unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     float complex twiddle, butterfly_top, butterfly_bottom;
@@ -120,6 +119,18 @@ void fft_rad2_dit(fft_t *this, float complex *samples, float *frequency_bins) {
     // Don't mess with me
     if (samples == NULL)
         return;
+
+    // Reverse the array in-place
+    for (unsigned int i = 0; i < this->count; i++) {
+        unsigned int rev_i = this->reversed_indices[i];
+
+        // Prevent double swapping and same-place swaps
+        if (rev_i > i) {
+            float complex temp = samples[i];
+            samples[i] = samples[rev_i];
+            samples[rev_i] = temp;
+        }
+    }
 
     // Mr. Clean
     halfN = this->count / 2;
@@ -141,9 +152,8 @@ void fft_rad2_dit(fft_t *this, float complex *samples, float *frequency_bins) {
 
             // Loop over butterflies
             for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = this->reversed_indices[start + butterfly];
-                butterfly_bottom_idx =
-                    this->reversed_indices[start + butterfly + ops_per_set];
+                butterfly_top_idx = start + butterfly;
+                butterfly_bottom_idx = start + butterfly + ops_per_set;
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
@@ -157,13 +167,6 @@ void fft_rad2_dit(fft_t *this, float complex *samples, float *frequency_bins) {
                 samples[butterfly_bottom_idx] =
                     butterfly_top - butterfly_bottom;
             }
-        }
-    }
-
-    if (frequency_bins != NULL) {
-        for (size_t i = 0; i < halfN; i++) {
-            float complex sample = samples[i];
-            frequency_bins[i] = cabsf(sample) / halfN;
         }
     }
 }
@@ -232,12 +235,10 @@ int fft_init_d(fft_d_t *this, unsigned int count) {
     double complex *twiddles;
 
     reversed_indices = (unsigned int *)malloc(count * sizeof(unsigned int));
-
     if (reversed_indices == NULL)
         return -1;
 
     twiddles = (double complex *)malloc((count / 2) * sizeof(double complex));
-
     if (twiddles == NULL) {
         free(reversed_indices);
         return -1;

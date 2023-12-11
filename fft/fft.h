@@ -17,7 +17,7 @@ typedef struct {
 } fft_d_t;
 
 int fft_init(fft_t *this, size_t count);
-void fft_rad2_dit(fft_t *this, float complex *samples, float *frequency_bins);
+void fft_rad2_dit(fft_t *this, float complex *samples);
 void fft_rad2_dif(fft_t *this, float complex *samples, float *frequency_bins);
 void fft_deinit(fft_t *this);
 
