@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define CHANNELS 2
 #define SWAPCHAIN_LENGTH 3
 
 typedef struct {
@@ -62,7 +63,7 @@ static void dma_irq_handler() {
 }
 
 size_t i2s_required_buffer_size(size_t sample_count) {
-    return sample_count * sizeof(uint32_t);
+    return CHANNELS * sample_count * sizeof(int32_t);
 }
 
 int i2s_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
@@ -122,7 +123,7 @@ int i2s_init(swapchain_t *swapchain, size_t sample_count, uint sck_pin,
     channel_config_set_dreq(&dma_config, pio_get_dreq(pio, pio_sm, false));
     channel_config_set_irq_quiet(&dma_config, false);
     dma_channel_configure(dma_channel, &dma_config, NULL, &pio->rxf[pio_sm],
-                          sample_count, false);
+                          CHANNELS * sample_count, false);
 
     // Setup interrupts
     dma_channel_set_irq0_enabled(dma_channel, true);

@@ -1,0 +1,10 @@
+{
+    "configurations": [
+        {
+            "command": "picotool load ${workspaceDir}/build/light-painting.uf2",
+            "name": "Load PICO",
+            "request": "launch",
+            "type": "node-terminal"
+        }
+    ]
+}

@@ -28,7 +28,7 @@ static color_neopixel_t magnitude_to_color(float magnitude) {
         magnitude = 1.f;
     }
 
-    return color_neopixel_from_hsv_f(magnitude * 360.f, 1.f, 1.f);
+    return color_neopixel_from_hsv_f(magnitude * 360.f, 1.f, magnitude);
 }
 
 static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
@@ -69,6 +69,7 @@ int main() {
     swapchain_t led_swapchain;
 
     stdio_usb_init();
+    sleep_ms(3000);
 
     if (!swapchain_init(&audio_swapchain,
                         i2s_required_buffer_size(AUDIO_SAMPLE_COUNT))) {
@@ -76,15 +77,11 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    printf("Audio swapchain init!\n");
-
     if (!swapchain_init(&led_swapchain,
                         neopixel_required_buffer_size(LED_COUNT))) {
         printf("Could not initialize LED swapchain\n");
         return EXIT_FAILURE;
     }
-
-    printf("LED swapchain init!\n");
 
     if (!i2s_init(&audio_swapchain, AUDIO_SAMPLE_COUNT, MIC_SCK_PIN, MIC_WS_PIN,
                   MIC_DATA_PIN)) {
@@ -92,37 +89,26 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    printf("INMP init!\n");
-
     if (!neopixel_init(&led_swapchain, LED_COUNT, LED_DATA_PIN)) {
         printf("Could not initialize WS2812 driver");
         return EXIT_FAILURE;
     }
-
-    printf("WS2812 init!\n");
 
     if (!audio_init(&audio, AUDIO_SAMPLE_COUNT)) {
         printf("Could not initialize audio");
         return EXIT_FAILURE;
     }
 
-    printf("Audio init!\n");
-
     i2s_start_sampling();
     neopixel_start_transmission();
 
     printf("Started sampling\n");
 
-    // Scratch buffers
-    int32_t scratch_int[8];
-    float scratch_float[8];
-
-    uint32_t max = 0;
-
     while (true) {
         synchronized(swapchain_consumer_swap(&audio_swapchain));
 
-        audio_feed_i2s(&audio, swapchain_consumer_buffer(&audio_swapchain));
+        audio_feed_i2s_stereo(
+            &audio, swapchain_consumer_buffer(&audio_swapchain), 0x000FFFFF);
         audio_envelope(&audio);
         audio_gain(&audio, 1.5f);
         audio_fft(&audio);
@@ -134,32 +120,6 @@ int main() {
             neopixel_get_pixel_count());
 
         synchronized(swapchain_producer_swap(&led_swapchain));
-
-        // const int32_t *source =
-        //     (const int32_t *)swapchain_consumer_buffer(&audio_swapchain);
-        // uint32_t *dest = swapchain_producer_buffer(&led_swapchain);
-
-        // for (size_t i = 0; i < 8; i++) {
-        //     int32_t int_value = ((source[2 * i + 1]) << 1) >> 8;
-        //     uint32_t abs_value = (uint32_t)abs(int_value);
-        //     if (abs_value > max) {
-        //         max = abs_value;
-        //         printf("Highest %u\n", max);
-        //     }
-        //     // scratch_float[i] = (float)int_value;
-        // }
-
-        // printf("%d\n%d\n%d\n%d\n%d\n%d\n%d\n%d\n", scratch_int[0],
-        //        scratch_int[1], scratch_int[2], scratch_int[3],
-        //        scratch_int[4], scratch_int[5], scratch_int[6],
-        //        scratch_int[7]);
-
-        // printf("%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n%.2f\n",
-        //        scratch_float[0], scratch_float[1], scratch_float[2],
-        //        scratch_float[3], scratch_float[4], scratch_float[5],
-        //        scratch_float[6], scratch_float[7]);
-
-        // sleep_ms(500);
     }
 
     return EXIT_SUCCESS;

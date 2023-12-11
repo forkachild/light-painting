@@ -8,16 +8,17 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(light-painting C CXX ASM)
 add_compile_options(
-    -Wall
     -Wextra
+    -Wall
+    -Werror
     -Wno-format
     -Wno-unused-function
     -Wno-maybe-uninitialized
     -Wpointer-arith
     -Wcast-align)
 add_link_options(
-    -Wall
     -Wextra
+    -Wall
     -Werror
     -flto)
 add_definitions(
