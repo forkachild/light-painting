@@ -24,13 +24,15 @@ size_t audio_sample_count(audio_t *this);
 
 // Effects/Filters/Operations
 void audio_envelope(audio_t *this);
-void audio_multiplyf(audio_t *this, float gain);
-void audio_multiply(audio_t *this, audio_t *that);
+void audio_multiply(audio_t *this, float gain);
+void audio_square(audio_t *this);
+void audio_square_signed(audio_t *this);
 void audio_clip(audio_t *this);
 void audio_normalize(audio_t *this);
 void audio_smooth(audio_t *this, float factor);
-void audio_square(audio_t *this);
 void audio_fft(audio_t *this);
+const float *audio_fft_freq_bins(audio_t *this);
+size_t audio_fft_freq_bin_count(audio_t *this);
 
 // If you need documentation for this, give up. The world needs you in a
 // different way.

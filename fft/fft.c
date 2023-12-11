@@ -46,15 +46,15 @@ static inline unsigned int reverse_bits(unsigned int N,
     return output;
 }
 
-static void fill_reversed_indices(unsigned int *reversed_indices,
-                                  unsigned int N) {
+static void fill_bit_reverse_map(unsigned int *bit_reverse_map,
+                                 unsigned int N) {
     unsigned int bit_depth, i;
 
     // Number of bits required
     bit_depth = log2N(N);
 
     for (i = 0; i < N; i++)
-        reversed_indices[i] = reverse_bits(i, bit_depth);
+        bit_reverse_map[i] = reverse_bits(i, bit_depth);
 }
 
 static void fill_twiddles(float complex *twiddles, unsigned int N) {
@@ -85,27 +85,57 @@ static void fill_twiddles_d(double complex *twiddles, unsigned int N) {
         twiddles[i] = cexp(angle_per_sample * i * I);
 }
 
+static void bit_reverse(float complex *samples, unsigned int *bit_reverse_map,
+                        unsigned int count) {
+
+    for (unsigned int i = 0; i < count; i++) {
+        unsigned int rev_i = bit_reverse_map[i];
+
+        // Prevent double swapping and same-place swaps
+        if (rev_i > i) {
+            float complex temp = samples[i];
+            samples[i] = samples[rev_i];
+            samples[rev_i] = temp;
+        }
+    }
+}
+
+static void bit_reverse_d(double complex *samples,
+                          unsigned int *bit_reverse_map, unsigned int count) {
+
+    for (unsigned int i = 0; i < count; i++) {
+        unsigned int rev_i = bit_reverse_map[i];
+
+        // Prevent double swapping and same-place swaps
+        if (rev_i > i) {
+            double complex temp = samples[i];
+            samples[i] = samples[rev_i];
+            samples[rev_i] = temp;
+        }
+    }
+}
+
 int fft_init(fft_t *this, unsigned int count) {
-    unsigned int *reversed_indices;
+    unsigned int *bit_reverse_map;
     float complex *twiddles;
 
-    reversed_indices = (unsigned int *)malloc(count * sizeof(unsigned int));
+    bit_reverse_map = (unsigned int *)malloc(count * sizeof(unsigned int));
 
-    if (reversed_indices == NULL)
+    if (bit_reverse_map == NULL)
         return -1;
 
     twiddles = (float complex *)malloc((count / 2) * sizeof(float complex));
 
     if (twiddles == NULL) {
-        free(reversed_indices);
+        free(bit_reverse_map);
         return -1;
     }
 
-    fill_reversed_indices(reversed_indices, count);
+    fill_bit_reverse_map(bit_reverse_map, count);
     fill_twiddles(twiddles, count / 2);
 
     this->count = count;
-    this->reversed_indices = reversed_indices;
+    this->bit_reverse_map = bit_reverse_map;
     this->twiddles = twiddles;
 
     return 1;
@@ -121,16 +151,7 @@ void fft_rad2_dit(fft_t *this, float complex *samples) {
         return;
 
     // Reverse the array in-place
-    for (unsigned int i = 0; i < this->count; i++) {
-        unsigned int rev_i = this->reversed_indices[i];
-
-        // Prevent double swapping and same-place swaps
-        if (rev_i > i) {
-            float complex temp = samples[i];
-            samples[i] = samples[rev_i];
-            samples[rev_i] = temp;
-        }
-    }
+    bit_reverse(samples, this->bit_reverse_map, this->count);
 
     // Mr. Clean
     halfN = this->count / 2;
@@ -171,7 +192,7 @@ void fft_rad2_dit(fft_t *this, float complex *samples) {
     }
 }
 
-void fft_rad2_dif(fft_t *this, float complex *samples, float *frequency_bins) {
+void fft_rad2_dif(fft_t *this, float complex *samples) {
     unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     float complex twiddle, butterfly_top, butterfly_bottom;
@@ -217,45 +238,39 @@ void fft_rad2_dif(fft_t *this, float complex *samples, float *frequency_bins) {
         }
     }
 
-    if (frequency_bins != NULL) {
-        for (size_t i = 0; i < halfN; i++) {
-            float complex sample = samples[this->reversed_indices[i]];
-            frequency_bins[i] = cabsf(sample) / halfN;
-        }
-    }
+    bit_reverse(samples, this->bit_reverse_map, this->count);
 }
 
 void fft_deinit(fft_t *this) {
     free(this->twiddles);
-    free(this->reversed_indices);
+    free(this->bit_reverse_map);
 }
 
 int fft_init_d(fft_d_t *this, unsigned int count) {
-    unsigned int *reversed_indices;
+    unsigned int *bit_reverse_map;
     double complex *twiddles;
 
-    reversed_indices = (unsigned int *)malloc(count * sizeof(unsigned int));
-    if (reversed_indices == NULL)
+    bit_reverse_map = (unsigned int *)malloc(count * sizeof(unsigned int));
+    if (bit_reverse_map == NULL)
         return -1;
 
     twiddles = (double complex *)malloc((count / 2) * sizeof(double complex));
     if (twiddles == NULL) {
-        free(reversed_indices);
+        free(bit_reverse_map);
         return -1;
     }
 
-    fill_reversed_indices(reversed_indices, count);
+    fill_bit_reverse_map(bit_reverse_map, count);
     fill_twiddles_d(twiddles, count / 2);
 
     this->count = count;
-    this->reversed_indices = reversed_indices;
+    this->bit_reverse_map = bit_reverse_map;
     this->twiddles = twiddles;
 
     return 1;
 }
 
-void fft_rad2_dit_d(fft_d_t *this, double complex *samples,
-                    double *frequency_bins) {
+void fft_rad2_dit_d(fft_d_t *this, double complex *samples) {
     unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     double complex twiddle, butterfly_top, butterfly_bottom;
@@ -263,6 +278,8 @@ void fft_rad2_dit_d(fft_d_t *this, double complex *samples,
     // Don't mess with me
     if (samples == NULL)
         return;
+
+    bit_reverse_d(samples, this->bit_reverse_map, this->count);
 
     // Mr. Clean
     halfN = this->count / 2;
@@ -284,9 +301,9 @@ void fft_rad2_dit_d(fft_d_t *this, double complex *samples,
 
             // Loop over butterflies
             for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = this->reversed_indices[start + butterfly];
+                butterfly_top_idx = this->bit_reverse_map[start + butterfly];
                 butterfly_bottom_idx =
-                    this->reversed_indices[start + butterfly + ops_per_set];
+                    this->bit_reverse_map[start + butterfly + ops_per_set];
 
                 // Determine the twiddle to pre-multiply the lower
                 // half of the butterfly
@@ -302,17 +319,9 @@ void fft_rad2_dit_d(fft_d_t *this, double complex *samples,
             }
         }
     }
-
-    if (frequency_bins != NULL) {
-        for (size_t i = 0; i < halfN; i++) {
-            double complex sample = samples[i];
-            frequency_bins[i] = cabs(sample) / halfN;
-        }
-    }
 }
 
-void fft_rad2_dif_d(fft_d_t *this, double complex *samples,
-                    double *frequency_bins) {
+void fft_rad2_dif_d(fft_d_t *this, double complex *samples) {
     unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
         butterfly_top_idx, butterfly_bottom_idx;
     double complex twiddle, butterfly_top, butterfly_bottom;
@@ -358,15 +367,10 @@ void fft_rad2_dif_d(fft_d_t *this, double complex *samples,
         }
     }
 
-    if (frequency_bins != NULL) {
-        for (size_t i = 0; i < halfN; i++) {
-            double complex sample = samples[this->reversed_indices[i]];
-            frequency_bins[i] = cabs(sample) / halfN;
-        }
-    }
+    bit_reverse_d(samples, this->bit_reverse_map, this->count);
 }
 
 void fft_deinit_d(fft_d_t *this) {
     free(this->twiddles);
-    free(this->reversed_indices);
+    free(this->bit_reverse_map);
 }

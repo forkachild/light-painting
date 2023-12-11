@@ -23,6 +23,7 @@
 
 #define AUDIO_PEAK_AMPLITUDE ((uint32_t)0x00FFFFFF)
 #define AUDIO_GAIN_F 1000.f
+#define AUDIO_SMOOTH_F .8f
 
 static color_neopixel_t magnitude_to_color(float magnitude) {
     if (magnitude < 0.f)
@@ -39,8 +40,8 @@ static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
                                                     size_t frequency_bin_count,
                                                     uint32_t *pixel_buffer,
                                                     size_t pixel_count) {
-    if (frequency_bin_count > pixel_count) {
-        float pitch = (float)frequency_bin_count / pixel_count;
+    if (frequency_bin_count != pixel_count) {
+        float pitch = (float)(frequency_bin_count - 2) / pixel_count;
 
         for (size_t pixel = 0; pixel < pixel_count; pixel++) {
             float index = pixel * pitch;
@@ -53,13 +54,6 @@ static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
                                        frequency_bins[index_i]),
                     magnitude_to_color(index_f * frequency_bins[index_i + 1]))
                     .value;
-        }
-    } else if (frequency_bin_count < pixel_count) {
-        float pitch = (float)frequency_bin_count / pixel_count;
-
-        for (size_t i = 0; i < pixel_count; i++) {
-            size_t bin = i * pitch;
-            pixel_buffer[i] = magnitude_to_color(frequency_bins[bin]).value;
         }
     } else {
         for (size_t i = 0; i < pixel_count; i++)
@@ -132,17 +126,14 @@ int main() {
                               AUDIO_PEAK_AMPLITUDE);
 
         // Process the signal
-        audio_multiplyf(&audio, AUDIO_GAIN_F);
-        audio_multiply(&audio, &audio);
-        audio_smooth(&audio, 0.8f);
+        audio_multiply(&audio, AUDIO_GAIN_F);
+        audio_square(&audio);
+        audio_smooth(&audio, AUDIO_SMOOTH_F);
         audio_envelope(&audio);
         audio_fft(&audio);
 
-        const float *audio_buffer = audio_sample_buffer(&audio);
-        const float *frequency_bins = &audio_buffer[1];
-        const size_t frequency_bin_count = audio_sample_count(&audio) / 2 - 1;
         visualizer_map_frequency_bins_to_pixels(
-            frequency_bins, frequency_bin_count,
+            audio_fft_freq_bins(&audio), audio_fft_freq_bin_count(&audio),
             swapchain_producer_buffer(&led_swapchain),
             neopixel_get_pixel_count());
 

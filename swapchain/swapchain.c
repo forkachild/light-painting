@@ -11,14 +11,15 @@ static inline void swap_elements(void *arr[], size_t first, size_t second) {
 }
 
 int swapchain_init(swapchain_t *this, size_t buffer_size) {
-    void *alloc = malloc(DEFAULT_BUFFER_COUNT * buffer_size);
-    if (alloc == NULL)
+    void *mem;
+
+    if ((mem = malloc(DEFAULT_BUFFER_COUNT * buffer_size)) == NULL)
         return -1;
 
     for (size_t i = 0; i < DEFAULT_BUFFER_COUNT; i++)
-        this->buffer_chain[i] = (void *)((size_t)alloc + (i * buffer_size));
+        this->buffer_chain[i] = (void *)((size_t)mem + (i * buffer_size));
 
-    this->mem = alloc;
+    this->mem = mem;
 
     return 1;
 }
