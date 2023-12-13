@@ -3,8 +3,13 @@
     "editor.detectIndentation": true,
     "editor.tabSize": 4,
     "editor.codeActionsOnSave": {
-        "source.fixAll": true,
-        "source.organizeImports": true,
+        "source.fixAll": "explicit",
+        "source.organizeImports": "explicit"
     },
     "editor.formatOnSave": true,
+    "files.associations": {
+        "*.css": "tailwindcss",
+        "tusb.h": "c",
+        "complex.h": "c"
+    },
 }

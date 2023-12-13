@@ -46,15 +46,16 @@ static inline unsigned int reverse_bits(unsigned int N,
     return output;
 }
 
-static void fill_bit_reverse_map(unsigned int *bit_reverse_map,
-                                 unsigned int N) {
-    unsigned int bit_depth, i;
+static int fill_bit_reverse_map(unsigned int *bit_reverse_map, unsigned int N) {
+    int bit_depth, i;
 
-    // Number of bits required
-    bit_depth = log2N(N);
+    if ((bit_depth = log2N(N)) == -1)
+        return -1;
 
-    for (i = 0; i < N; i++)
+    for (i = 0; i < (int)N; i++)
         bit_reverse_map[i] = reverse_bits(i, bit_depth);
+
+    return 1;
 }
 
 static void fill_twiddles(float complex *twiddles, unsigned int N) {
@@ -131,7 +132,12 @@ int fft_init(fft_t *this, unsigned int count) {
         return -1;
     }
 
-    fill_bit_reverse_map(bit_reverse_map, count);
+    if (!fill_bit_reverse_map(bit_reverse_map, count)) {
+        free(bit_reverse_map);
+        free(twiddles);
+        return -1;
+    }
+
     fill_twiddles(twiddles, count / 2);
 
     this->count = count;
@@ -141,99 +147,95 @@ int fft_init(fft_t *this, unsigned int count) {
     return 1;
 }
 
-void fft_rad2_dit(fft_t *this, float complex *samples) {
-    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx;
-    float complex twiddle, butterfly_top, butterfly_bottom;
+void fft_rad2_dit(fft_t *this, float complex *samples,
+                  unsigned int sample_count) {
+    unsigned int half_sample_count, dft_count, butterfly_count, dft, dft_offset,
+        butterfly, top_idx, bottom_idx, twiddle_idx;
+    float complex top, bottom;
 
     // Don't mess with me
-    if (samples == NULL)
+    if (samples == NULL || this->count != sample_count)
         return;
 
     // Reverse the array in-place
     bit_reverse(samples, this->bit_reverse_map, this->count);
 
     // Mr. Clean
-    halfN = this->count / 2;
+    half_sample_count = this->count / 2;
 
-    // Perform the stages
-    // i is the number of sets to perform
+    // Loop over each stage
+    // dft_count is the number of DFTs to perform in the stage
     // eg For N = 8
-    // i = 4,2,1
-    for (set_count = halfN; set_count >= 1; set_count >>= 1) {
-        // No of operations per set in this stage
-        // ops_per_set = 1,2,4
-        ops_per_set = halfN / set_count;
+    // dft_count = 4,2,1
+    for (dft_count = half_sample_count; dft_count >= 1; dft_count >>= 1) {
+        // No of butterflies per DFT in this stage
+        // butterfly_count = 1,2,4
+        butterfly_count = half_sample_count / dft_count;
 
-        // Loop over sets
-        // j is the set #
-        for (set = 0; set < set_count; set++) {
+        // Loop over each DFT in this stage
+        for (dft = 0; dft < dft_count; dft++) {
             // Start the butterflies
-            start = set * ops_per_set * 2;
+            dft_offset = dft * butterfly_count * 2;
 
-            // Loop over butterflies
-            for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = start + butterfly;
-                butterfly_bottom_idx = start + butterfly + ops_per_set;
+            // Loop over butterflies in this DFT
+            for (butterfly = 0; butterfly < butterfly_count; butterfly++) {
+                top_idx = dft_offset + butterfly;
+                bottom_idx = top_idx + butterfly_count;
+                twiddle_idx = butterfly * dft_count;
 
-                // Determine the twiddle to pre-multiply the lower
-                // half of the butterfly
-                twiddle =
-                    this->twiddles[butterfly * set_count]; // Cache hit baby!
-                butterfly_top = samples[butterfly_top_idx];
-                butterfly_bottom = twiddle * samples[butterfly_bottom_idx];
+                // Prepare butterfly wings
+                top = samples[top_idx];
+                bottom = this->twiddles[twiddle_idx] * samples[bottom_idx];
 
                 // Finally the butterfly
-                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                samples[butterfly_bottom_idx] =
-                    butterfly_top - butterfly_bottom;
+                samples[top_idx] = top + bottom;
+                samples[bottom_idx] = top - bottom;
             }
         }
     }
 }
 
-void fft_rad2_dif(fft_t *this, float complex *samples) {
-    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx;
-    float complex twiddle, butterfly_top, butterfly_bottom;
+void fft_rad2_dif(fft_t *this, float complex *samples,
+                  unsigned int sample_count) {
+    unsigned int half_sample_count, dft_count, butterfly_count, dft, dft_offset,
+        butterfly, top_idx, bottom_idx, twiddle_idx;
+    float complex top, bottom;
 
     // Don't mess with me
-    if (samples == NULL)
+    if (samples == NULL || this->count != sample_count)
         return;
 
-    // Mr. Clean!
-    halfN = this->count / 2;
+    // Mr. Clean
+    half_sample_count = this->count / 2;
 
-    // Perform the stages
-    // i is the number of sets to perform
+    // Loop over each stage
+    // dft_count is the number of DFTs to perform in the stage
     // eg For N = 8
-    // i = 1,2,4
-    for (set_count = 1; set_count <= halfN; set_count <<= 1) {
-        // No of operations per set in this stage
-        // ops_per_set = 4,2,1
-        ops_per_set = halfN / set_count;
+    // dft_count = 4,2,1
+    for (dft_count = 1; dft_count <= half_sample_count; dft_count <<= 1) {
+        // No of butterflies per DFT in this stage
+        // butterfly_count = 1,2,4
+        butterfly_count = half_sample_count / dft_count;
 
-        // Loop over sets
-        for (set = 0; set < set_count; set++) {
+        // Loop over each DFT in this stage
+        for (dft = 0; dft < dft_count; dft++) {
             // Start the butterflies
-            start = set * ops_per_set * 2;
+            dft_offset = dft * butterfly_count * 2;
 
-            // Loop over butterflies
-            for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = start + butterfly;
-                butterfly_bottom_idx = start + butterfly + ops_per_set;
+            // Loop over butterflies in this DFT
+            for (butterfly = 0; butterfly < butterfly_count; butterfly++) {
+                top_idx = dft_offset + butterfly;
+                bottom_idx = top_idx + butterfly_count;
+                twiddle_idx = butterfly * dft_count;
 
-                // Determine the twiddle to pre-multiply the lower
-                // half of the butterfly
-                // Cache hit baby!
-                twiddle = this->twiddles[butterfly * set_count];
-                butterfly_top = samples[butterfly_top_idx];
-                butterfly_bottom = samples[butterfly_bottom_idx];
+                // Prepare butterfly wings
+                top = samples[top_idx];
+                bottom = samples[bottom_idx];
 
                 // Finally the butterfly
-                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                samples[butterfly_bottom_idx] =
-                    twiddle * (butterfly_top - butterfly_bottom);
+                samples[top_idx] = top + bottom;
+                samples[bottom_idx] =
+                    this->twiddles[twiddle_idx] * (top - bottom);
             }
         }
     }
@@ -270,99 +272,95 @@ int fft_init_d(fft_d_t *this, unsigned int count) {
     return 1;
 }
 
-void fft_rad2_dit_d(fft_d_t *this, double complex *samples) {
-    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx;
-    double complex twiddle, butterfly_top, butterfly_bottom;
+void fft_rad2_dit_d(fft_d_t *this, double complex *samples,
+                    unsigned int sample_count) {
+    unsigned int half_sample_count, dft_count, butterfly_count, dft, dft_offset,
+        butterfly, top_idx, bottom_idx, twiddle_idx;
+    double complex top, bottom;
 
     // Don't mess with me
-    if (samples == NULL)
+    if (samples == NULL || this->count != sample_count)
         return;
 
+    // Reverse the array in-place
     bit_reverse_d(samples, this->bit_reverse_map, this->count);
 
     // Mr. Clean
-    halfN = this->count / 2;
+    half_sample_count = this->count / 2;
 
-    // Perform the stages
-    // i is the number of sets to perform
+    // Loop over each stage
+    // dft_count is the number of DFTs to perform in the stage
     // eg For N = 8
-    // i = 4,2,1
-    for (set_count = halfN; set_count >= 1; set_count >>= 1) {
-        // No of operations per set in this stage
-        // ops_per_set = 1,2,4
-        ops_per_set = halfN / set_count;
+    // dft_count = 4,2,1
+    for (dft_count = half_sample_count; dft_count >= 1; dft_count >>= 1) {
+        // No of butterflies per DFT in this stage
+        // butterfly_count = 1,2,4
+        butterfly_count = half_sample_count / dft_count;
 
-        // Loop over sets
-        // j is the set #
-        for (set = 0; set < set_count; set++) {
+        // Loop over each DFT in this stage
+        for (dft = 0; dft < dft_count; dft++) {
             // Start the butterflies
-            start = set * ops_per_set * 2;
+            dft_offset = dft * butterfly_count * 2;
 
-            // Loop over butterflies
-            for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = this->bit_reverse_map[start + butterfly];
-                butterfly_bottom_idx =
-                    this->bit_reverse_map[start + butterfly + ops_per_set];
+            // Loop over butterflies in this DFT
+            for (butterfly = 0; butterfly < butterfly_count; butterfly++) {
+                top_idx = dft_offset + butterfly;
+                bottom_idx = top_idx + butterfly_count;
+                twiddle_idx = butterfly * dft_count;
 
-                // Determine the twiddle to pre-multiply the lower
-                // half of the butterfly
-                twiddle =
-                    this->twiddles[butterfly * set_count]; // Cache hit baby!
-                butterfly_top = samples[butterfly_top_idx];
-                butterfly_bottom = twiddle * samples[butterfly_bottom_idx];
+                // Prepare butterfly wings
+                top = samples[top_idx];
+                bottom = this->twiddles[twiddle_idx] * samples[bottom_idx];
 
                 // Finally the butterfly
-                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                samples[butterfly_bottom_idx] =
-                    butterfly_top - butterfly_bottom;
+                samples[top_idx] = top + bottom;
+                samples[bottom_idx] = top - bottom;
             }
         }
     }
 }
 
-void fft_rad2_dif_d(fft_d_t *this, double complex *samples) {
-    unsigned int halfN, set_count, ops_per_set, set, start, butterfly,
-        butterfly_top_idx, butterfly_bottom_idx;
-    double complex twiddle, butterfly_top, butterfly_bottom;
+void fft_rad2_dif_d(fft_d_t *this, double complex *samples,
+                    unsigned int sample_count) {
+    unsigned int half_sample_count, dft_count, butterfly_count, dft, dft_offset,
+        butterfly, top_idx, bottom_idx, twiddle_idx;
+    float complex top, bottom;
 
     // Don't mess with me
-    if (samples == NULL)
+    if (samples == NULL || this->count != sample_count)
         return;
 
     // Mr. Clean
-    halfN = this->count / 2;
+    half_sample_count = this->count / 2;
 
-    // Perform the stages
-    // i is the number of sets to perform
+    // Loop over each stage
+    // dft_count is the number of DFTs to perform in the stage
     // eg For N = 8
-    // i = 1,2,4
-    for (set_count = 1; set_count <= halfN; set_count <<= 1) {
-        // No of operations per set in this stage
-        // ops_per_set = 4,2,1
-        ops_per_set = halfN / set_count;
+    // dft_count = 4,2,1
+    for (dft_count = 1; dft_count <= half_sample_count; dft_count <<= 1) {
+        // No of butterflies per DFT in this stage
+        // butterfly_count = 1,2,4
+        butterfly_count = half_sample_count / dft_count;
 
-        // Loop over sets
-        for (set = 0; set < set_count; set++) {
+        // Loop over each DFT in this stage
+        for (dft = 0; dft < dft_count; dft++) {
             // Start the butterflies
-            start = set * ops_per_set * 2;
+            dft_offset = dft * butterfly_count * 2;
 
-            // Loop over butterflies
-            for (butterfly = 0; butterfly < ops_per_set; butterfly++) {
-                butterfly_top_idx = start + butterfly;
-                butterfly_bottom_idx = start + butterfly + ops_per_set;
+            // Loop over butterflies in this DFT
+            for (butterfly = 0; butterfly < butterfly_count; butterfly++) {
+                top_idx = dft_offset + butterfly;
+                bottom_idx = top_idx + butterfly_count;
+                twiddle_idx = butterfly * dft_count;
 
-                // Determine the twiddle to pre-multiply the lower
-                // half of the butterfly
-                // Cache hit baby!
-                twiddle = this->twiddles[butterfly * set_count];
-                butterfly_top = samples[butterfly_top_idx];
-                butterfly_bottom = samples[butterfly_bottom_idx];
+                // Prepare butterfly wings
+                top = samples[top_idx];
+                bottom = samples[bottom_idx];
 
                 // Finally the butterfly
-                samples[butterfly_top_idx] = butterfly_top + butterfly_bottom;
-                samples[butterfly_bottom_idx] =
-                    twiddle * (butterfly_top - butterfly_bottom);
+                samples[top_idx] = top + bottom;
+                samples[bottom_idx] =
+                    this->twiddles[twiddle_idx] * (top - bottom);
             }
         }
     }

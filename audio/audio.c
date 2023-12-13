@@ -2,24 +2,46 @@
 
 #include <complex.h>
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 
+#define MIN_USABLE_FREQ 60
+#define MAX_USABLE_FREQ 6000
+
 static inline void generate_envelope(float *samples, size_t count) {
-    float aDelta = (float)M_PI / count;
+    float aDelta = 2.f * (float)M_PI / count;
 
     for (size_t i = 0; i < count; i++) {
         float angle = i * aDelta;
-        angle -= (float)M_PI_2;
-        samples[i] = 0.5f * (1.f + cosf(i * aDelta));
+        angle -= (float)M_PI;
+        samples[i] = .5f * (1.f + cosf(angle));
     }
 }
 
-int audio_init(audio_t *this, size_t sample_count) {
+static inline float *get_source_buffer(audio_t *self) {
+    return self->sample_buffers[self->sample_cursor];
+}
+
+static inline size_t get_next_cursor(audio_t *self) {
+    return (self->sample_cursor + 1) % SAMPLE_BUFFER_COUNT;
+}
+
+static inline float *get_dest_buffer(audio_t *self) {
+    return self->sample_buffers[get_next_cursor(self)];
+}
+
+static inline void flip_buffers(audio_t *self) {
+    self->sample_cursor = get_next_cursor(self);
+}
+
+int audio_init(audio_t *self, size_t sample_count, size_t sample_rate,
+               float fft_smooth) {
     float *sample_buffer;
     float *envelope;
     float complex *fft_buffer;
 
-    if ((sample_buffer = malloc(sample_count * sizeof(float))) == NULL)
+    if ((sample_buffer = malloc(SAMPLE_BUFFER_COUNT * sample_count *
+                                sizeof(float))) == NULL)
         return -1;
 
     if ((envelope = malloc(sample_count * sizeof(float))) == NULL) {
@@ -33,7 +55,7 @@ int audio_init(audio_t *this, size_t sample_count) {
         return -1;
     }
 
-    if (!fft_init(&this->fft, sample_count)) {
+    if (!fft_init(&self->fft, sample_count)) {
         free(sample_buffer);
         free(envelope);
         free(fft_buffer);
@@ -42,20 +64,27 @@ int audio_init(audio_t *this, size_t sample_count) {
 
     generate_envelope(envelope, sample_count);
 
-    this->sample_count = sample_count;
-    this->sample_buffer = sample_buffer;
-    this->envelope = envelope;
-    this->fft_buffer = fft_buffer;
+    self->sample_rate = sample_rate;
+    self->fft_smooth = fft_smooth;
+    self->sample_count = sample_count;
+    self->sample_cursor = 0;
+    self->envelope = envelope;
+    self->fft_buffer = fft_buffer;
+
+    for (size_t i = 0; i < SAMPLE_BUFFER_COUNT; i++)
+        self->sample_buffers[i] = &sample_buffer[i * sample_count];
 
     return 1;
 }
 
-void audio_feed_i2s_stereo(audio_t *this, const int32_t *samples,
-                           int32_t peak) {
+void audio_feed_i2s_stereo_24bit(audio_t *self, const int32_t *samples,
+                                 int32_t peak) {
     float peak_f = (float)peak;
-    float factor = 1.f / (2.f * peak_f);
+    float scale_factor = 1.f / (2.f * peak_f);
 
-    for (size_t i = 0; i < this->sample_count; i++) {
+    float *sample_buffer = get_source_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++) {
         size_t index_l = 2 * i;
         size_t index_r = index_l + 1;
 
@@ -63,102 +92,231 @@ void audio_feed_i2s_stereo(audio_t *this, const int32_t *samples,
         //  |                      |
         // x000000000000000000000000xxxxxxx
         // This is a 24-bit
-        // One left shift involves the MSB for the signed right shift.
+        // One left shift aligns the MSB. Then it right shifted to align to
+        // 24-bits.
         int32_t sample_l = (samples[index_l] << 1) >> 8;
         int32_t sample_r = (samples[index_r] << 1) >> 8;
 
         int32_t sample = sample_l + sample_r;
 
         // Scale and put
-        this->sample_buffer[i] = (float)sample * factor;
+        sample_buffer[i] = (float)sample * scale_factor;
     }
 }
 
-const float *audio_sample_buffer(audio_t *this) { return this->sample_buffer; }
+void audio_scale_rms(audio_t *self) {
+    float rms = 0;
 
-size_t audio_sample_count(audio_t *this) { return this->sample_count; }
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
 
-void audio_envelope(audio_t *this) {
-    for (size_t i = 0; i < this->sample_count; i++)
-        this->sample_buffer[i] *= this->envelope[i];
+    for (size_t i = 0; i < self->sample_count; i++) {
+        float sample = source_buffer[i];
+        rms += sample * sample;
+    }
+
+    rms = sqrtf(rms);
+    rms /= self->sample_count;
+
+    float rms_lb = .8f * rms;
+
+    for (size_t i = 0; i < self->sample_count; i++) {
+        float sample = source_buffer[i];
+
+        if (fabsf(sample) < rms_lb)
+            sample = 0.f;
+        else
+            sample /= rms;
+
+        dest_buffer[i] = sample;
+    }
+
+    flip_buffers(self);
 }
 
-void audio_multiply(audio_t *this, float value) {
-    for (size_t i = 0; i < this->sample_count; i++)
-        this->sample_buffer[i] *= value;
+void audio_envelope(audio_t *self) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++)
+        dest_buffer[i] = source_buffer[i] * self->envelope[i];
+
+    flip_buffers(self);
 }
 
-void audio_square(audio_t *this) {
-    for (size_t i = 0; i < this->sample_count; i++)
-        this->sample_buffer[i] *= this->sample_buffer[i];
+void audio_multiply(audio_t *self, float value) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++)
+        dest_buffer[i] = source_buffer[i] * value;
+
+    flip_buffers(self);
 }
 
-void audio_square_signed(audio_t *this) {
-    for (size_t i = 0; i < this->sample_count; i++)
-        this->sample_buffer[i] *= fabsf(this->sample_buffer[i]);
+void audio_square(audio_t *self) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++)
+        dest_buffer[i] = source_buffer[i] * source_buffer[i];
+
+    flip_buffers(self);
 }
 
-void audio_clip(audio_t *this) {
-    for (size_t i = 0; i < this->sample_count; i++) {
-        float sample = this->sample_buffer[i];
+void audio_square_signed(audio_t *self) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++)
+        dest_buffer[i] = source_buffer[i] * fabsf(source_buffer[i]);
+
+    flip_buffers(self);
+}
+
+void audio_clip_above(audio_t *self, float amplitude) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++) {
+        float sample = source_buffer[i];
+
+        if (sample > amplitude)
+            sample = 0.f;
+
+        dest_buffer[i] = sample;
+    }
+
+    flip_buffers(self);
+}
+
+void audio_clip_below(audio_t *self, float amplitude) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++) {
+        float sample = source_buffer[i];
+
+        if (sample < amplitude)
+            sample = 0.f;
+
+        dest_buffer[i] = sample;
+    }
+
+    flip_buffers(self);
+}
+
+void audio_clip(audio_t *self) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++) {
+        float sample = source_buffer[i];
 
         if (sample > 1.f)
             sample = 1.f;
         else if (sample < 0.f)
             sample = 0.f;
 
-        this->sample_buffer[i] = sample;
+        dest_buffer[i] = sample;
     }
+
+    flip_buffers(self);
 }
 
-void audio_normalize(audio_t *this) {
+void audio_normalize(audio_t *self) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
     float max = 0.f;
 
-    for (size_t i = 0; i < this->sample_count; i++) {
-        float sample_abs = fabsf(this->sample_buffer[i]);
+    for (size_t i = 0; i < self->sample_count; i++) {
+        float sample = fabsf(source_buffer[i]);
 
-        if (sample_abs > max)
-            max = sample_abs;
+        if (sample > max)
+            max = sample;
     }
 
-    if (max == 0.f)
-        return;
+    for (size_t i = 0; i < self->sample_count; i++)
+        dest_buffer[i] = source_buffer[i] / max;
 
-    for (size_t i = 0; i < this->sample_count; i++)
-        this->sample_buffer[i] /= max;
+    flip_buffers(self);
 }
 
-void audio_smooth(audio_t *this, float factor) {
+void audio_smooth_horizontal(audio_t *self, float factor) {
     if (factor == 0.f)
         return;
 
-    for (size_t i = 1; i < this->sample_count; i++)
-        this->sample_buffer[i] = ((1.f - factor) * this->sample_buffer[i]) +
-                                 (factor * this->sample_buffer[i - 1]);
+    float *source_buffer = get_source_buffer(self);
+
+    for (size_t i = 1; i < self->sample_count; i++)
+        source_buffer[i] = (factor * source_buffer[i - 1]) +
+                           ((1.f - factor) * source_buffer[i]);
 }
 
-void audio_fft(audio_t *this) {
-    for (size_t i = 0; i < this->sample_count; i++)
+void audio_smooth_vertical(audio_t *self, float factor) {
+    if (factor == 0.f)
+        return;
+
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++)
+        dest_buffer[i] =
+            (factor * dest_buffer[i]) + ((1.f - factor) * source_buffer[i]);
+
+    flip_buffers(self);
+}
+
+void audio_fft(audio_t *self) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    for (size_t i = 0; i < self->sample_count; i++)
         // Implicit float to float complex cast
-        this->fft_buffer[i] = this->sample_buffer[i];
+        self->fft_buffer[i] = source_buffer[i];
 
-    fft_rad2_dit(&this->fft, this->fft_buffer);
+    fft_rad2_dit(&self->fft, self->fft_buffer, self->sample_count);
 
-    for (size_t i = 0; i < this->sample_count / 2; i++)
-        this->sample_buffer[i] = cabsf(this->fft_buffer[i]);
+    // Determine maximum value for normalization
+    for (size_t i = 0; i < self->sample_count / 2; i++)
+        dest_buffer[i] = cabsf(self->fft_buffer[i]);
+
+    flip_buffers(self);
 }
 
-const float *audio_fft_freq_bins(audio_t *this) {
-    return &this->sample_buffer[1];
+void audio_fft_normalize(audio_t *self) {
+    float *source_buffer = get_source_buffer(self);
+    float *dest_buffer = get_dest_buffer(self);
+
+    float max = 0.f;
+
+    for (size_t i = 1; i < self->sample_count / 2; i++) {
+        float sample = source_buffer[i];
+
+        if (sample > max)
+            max = sample;
+    }
+
+    for (size_t i = 0; i < self->sample_count; i++)
+        dest_buffer[i] = source_buffer[i] / max;
+
+    flip_buffers(self);
 }
 
-size_t audio_fft_freq_bin_count(audio_t *this) {
-    return (this->sample_count / 2) - 1;
+const float *audio_fft_spectra(audio_t *self) {
+    size_t index = MIN_USABLE_FREQ * self->sample_count / self->sample_rate;
+    return &get_source_buffer(self)[index];
 }
 
-void audio_deinit(audio_t *this) {
-    free(this->sample_buffer);
-    free(this->envelope);
-    free(this->fft_buffer);
-    fft_deinit(&this->fft);
+size_t audio_fft_freq_spectra_count(audio_t *self) {
+    return ((MAX_USABLE_FREQ - MIN_USABLE_FREQ) * self->sample_count /
+            self->sample_rate);
+}
+
+void audio_deinit(audio_t *self) {
+    free(self->sample_buffers[0]);
+    free(self->envelope);
+    free(self->fft_buffer);
+    fft_deinit(&self->fft);
 }

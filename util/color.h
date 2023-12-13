@@ -118,6 +118,61 @@ static color_neopixel_t color_neopixel_from_hsv_f(float h, float s, float v) {
                                    (uint8_t)(b * 255));
 }
 
+static color_neopixel_t color_neopixel_from_intensity(float intensity) {
+    uint8_t r = 0, g = 0, b = 0;
+
+    if (intensity == 0.f)
+        return (color_neopixel_t){
+            .grba =
+                {
+                    .r = 0,
+                    .g = 0,
+                    .b = 0,
+                    .a = 0xFF,
+                },
+        };
+    else if (intensity == 1.f)
+        return (color_neopixel_t){
+            .grba =
+                {
+                    .r = 0xFF,
+                    .g = 0xFF,
+                    .b = 0xFF,
+                    .a = 0xFF,
+                },
+        };
+
+    float index = 3.f * intensity;
+    int index_i = (int)index;
+    float index_f = index - index_i;
+
+    switch (index_i) {
+    case 0:
+        r = (uint8_t)(index_f * 255);
+        break;
+    case 1:
+        r = 0xFF;
+        g = (uint8_t)(index_f * 255);
+        break;
+    case 2:
+    default:
+        r = 0xFF;
+        g = 0xFF;
+        b = (uint8_t)(index_f * 255);
+        break;
+    }
+
+    return (color_neopixel_t){
+        .grba =
+            {
+                .r = r,
+                .g = g,
+                .b = b,
+                .a = 0xFF,
+            },
+    };
+}
+
 static color_neopixel_t color_neopixel_add(color_neopixel_t left,
                                            color_neopixel_t right) {
     return (color_neopixel_t){

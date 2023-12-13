@@ -35,6 +35,7 @@ add_subdirectory(fft)
 add_subdirectory(swapchain)
 add_subdirectory(drivers)
 add_subdirectory(audio)
+add_subdirectory(canvas)
 
 target_sources(light-painting
     PRIVATE
@@ -46,6 +47,7 @@ target_link_libraries(light-painting
         util
         audio
         swapchain
+        canvas
         pico_stdlib)
 
 pico_add_extra_outputs(light-painting)

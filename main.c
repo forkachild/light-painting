@@ -12,8 +12,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define AUDIO_SAMPLE_COUNT 64
-#define LED_COUNT 300
+#define AUDIO_SAMPLE_RATE 48000
+#define AUDIO_SAMPLE_COUNT 256
+#define LED_COUNT 298
 
 #define MIC_SCK_PIN 27
 #define MIC_WS_PIN 28
@@ -22,8 +23,8 @@
 #define LED_DATA_PIN 8
 
 #define AUDIO_PEAK_AMPLITUDE ((uint32_t)0x00FFFFFF)
-#define AUDIO_GAIN_F 1000.f
-#define AUDIO_SMOOTH_F .8f
+#define AUDIO_GAIN_MULTIPLIER 1000.f
+#define AUDIO_SMOOTH_FACTOR .5f
 
 static color_neopixel_t magnitude_to_color(float magnitude) {
     if (magnitude < 0.f)
@@ -31,9 +32,8 @@ static color_neopixel_t magnitude_to_color(float magnitude) {
     else if (magnitude > 1.f)
         magnitude = 1.f;
 
-    magnitude *= magnitude;
-
-    return color_neopixel_from_hsv_f(magnitude * 360.f, 1.f, magnitude);
+    return color_neopixel_from_hsv_f(magnitude * 240.f, 1.f, magnitude);
+    // return color_neopixel_from_intensity(magnitude);
 }
 
 static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
@@ -41,7 +41,7 @@ static void visualizer_map_frequency_bins_to_pixels(const float *frequency_bins,
                                                     uint32_t *pixel_buffer,
                                                     size_t pixel_count) {
     if (frequency_bin_count != pixel_count) {
-        float pitch = (float)(frequency_bin_count - 2) / pixel_count;
+        float pitch = (float)(frequency_bin_count - 1) / pixel_count;
 
         for (size_t pixel = 0; pixel < pixel_count; pixel++) {
             float index = pixel * pitch;
@@ -91,7 +91,7 @@ int main() {
         return EXIT_FAILURE;
     }
 
-    if (!audio_init(&audio, AUDIO_SAMPLE_COUNT)) {
+    if (!audio_init(&audio, AUDIO_SAMPLE_COUNT, AUDIO_SAMPLE_RATE, .8f)) {
         printf("Could not initialize audio");
         return EXIT_FAILURE;
     }
@@ -101,39 +101,29 @@ int main() {
 
     printf("Visualizing\n");
 
-    struct mallinfo minfo = mallinfo();
-    printf("Memory info:\n"
-           "  arena = %u\n"
-           "  ordblks = %u\n"
-           "  smblks = %u\n"
-           "  hblks = %u\n"
-           "  hblkhd = %u\n"
-           "  usmblks = %u\n"
-           "  fsmblks = %u\n"
-           "  uordblks = %u\n"
-           "  fordblks = %u\n"
-           "  keepcost = %u\n",
-           minfo.arena, minfo.ordblks, minfo.smblks, minfo.hblks, minfo.hblkhd,
-           minfo.usmblks, minfo.fsmblks, minfo.uordblks, minfo.fordblks,
-           minfo.keepcost);
-
     while (true) {
         critical_section(swapchain_consumer_swap(&audio_swapchain));
 
         // Feed the stereo data
-        audio_feed_i2s_stereo(&audio,
-                              swapchain_consumer_buffer(&audio_swapchain),
-                              AUDIO_PEAK_AMPLITUDE);
+        audio_feed_i2s_stereo_24bit(&audio,
+                                    swapchain_consumer_buffer(&audio_swapchain),
+                                    AUDIO_PEAK_AMPLITUDE);
 
         // Process the signal
-        audio_multiply(&audio, AUDIO_GAIN_F);
-        audio_square(&audio);
-        audio_smooth(&audio, AUDIO_SMOOTH_F);
+        // audio_normalize(&audio);
+        audio_multiply(&audio, 50.f);
+        audio_square_signed(&audio);
+        // audio_scale_rms(&audio);
         audio_envelope(&audio);
         audio_fft(&audio);
+        audio_square(&audio);
+        // audio_fft_normalize(&audio);
+        audio_multiply(&audio, 5.f);
+        // audio_clip_below(&audio, 0.3f);
+        audio_smooth_vertical(&audio, 0.7f);
 
         visualizer_map_frequency_bins_to_pixels(
-            audio_fft_freq_bins(&audio), audio_fft_freq_bin_count(&audio),
+            audio_fft_spectra(&audio), audio_fft_freq_spectra_count(&audio),
             swapchain_producer_buffer(&led_swapchain),
             neopixel_get_pixel_count());
 
